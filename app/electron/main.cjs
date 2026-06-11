@@ -46,10 +46,8 @@ function startServer() {
   process.env.API_PORT = process.env.API_PORT || '17345';
 
   try {
-    // tsx/cjs registers a require hook that transpiles TypeScript + ESM on the fly
-    require('tsx/cjs');
-    // Now we can require TypeScript files directly
-    require('../server/index.ts');
+    // Load pre-compiled CJS server (compiled by esbuild during build step)
+    require('../dist-server/index.cjs');
     serverStarted = true;
     console.log('[server] Express started in-process on port ' + process.env.API_PORT);
   } catch (err) {

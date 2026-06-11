@@ -8,6 +8,7 @@ directories:
 
 files:
   - dist/**/*
+  - dist-server/**/*
   - server/**/*
   - electron/**/*.cjs
   - node_modules/**/*

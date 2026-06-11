@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "dev:server": "tsx server/index.ts",
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && npx esbuild server/index.ts --bundle --platform=node --outfile=dist-server/index.cjs --format=cjs --external:express --external:cors --external:dotenv --external:js-yaml",
     "preview": "vite preview",
     "electron:dev": "concurrently -k \"npm run dev:server\" \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
     "electron:build": "npm run build && electron-builder",

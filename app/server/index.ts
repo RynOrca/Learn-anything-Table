@@ -10,9 +10,12 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { config } from 'dotenv';
 
-// ESM __dirname shim
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// __dirname — works in ESM (tsx dev) and CJS (esbuild compiled)
+const __dirname: string = (() => {
+  // @ts-ignore: __dirname is a CJS global, unavailable in ESM
+  if (typeof __dirname !== 'undefined') return __dirname as string;
+  return path.dirname(fileURLToPath(import.meta.url));
+})();
 
 // Load .env from app/ directory
 config({ path: path.resolve(__dirname, '..', '.env') });
@@ -700,17 +703,9 @@ export { app };
 // Start server (when called directly)
 // ---------------------------------------------------------------------------
 
-// Detect if this module is being run directly (not imported)
-const isMainModule = process.argv[1] && (
-  process.argv[1].endsWith('index.ts') ||
-  process.argv[1].endsWith('index.js') ||
-  process.argv[1].endsWith('server' + path.sep + 'index.ts') ||
-  process.argv[1].endsWith('server' + path.sep + 'index.js')
-);
-
-if (isMainModule) {
-  app.listen(PORT, () => {
-    console.log(`[learn-anything] API server running at http://localhost:${PORT}`);
-    console.log(`[learn-anything] Data root: ${getDataRoot()}`);
-  });
-}
+// Always start listening — this module is used both standalone (tsx) and
+// imported from Electron main process (compiled CJS).
+app.listen(PORT, () => {
+  console.log(`[learn-anything] API server running at http://localhost:${PORT}`);
+  console.log(`[learn-anything] Data root: ${getDataRoot()}`);
+});
