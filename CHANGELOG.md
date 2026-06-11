@@ -2,6 +2,14 @@
 
 ## [Unreleased] — 2026-06-12
 
+### Fixed
+
+- Task 10: 集成测试与最终修复
+  - 修复 `tsc` 构建失败: `tsconfig.json` 添加 `"exclude": ["src/server"]` 解决 TS6305 声明文件冲突（src/server 同时被主项目和 tsconfig.node.json composite 项目包含）
+  - 验证 Express 服务器: 所有 CRUD 端点正常（GET/POST/DELETE topics, state, sessions, plan, knowledge-map, config/data-dir, config/scan-topics）
+  - 验证 Vite dev server: API 插件中间件正常工作，HTML 服务正常
+  - 验证 Vite build: 产物完整（dist/index.html + assets/JS + assets/CSS）
+
 ### Added
 
 - Task 1: Electron 桌面应用基础设施
