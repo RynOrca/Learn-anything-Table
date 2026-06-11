@@ -19,6 +19,15 @@
   - 创建 `types/index.ts`: Concept, TopicState, DashboardStats, Settings 等核心类型
   - 创建 `store/useSettingsStore.ts`: Zustand 设置 store，支持 localStorage 持久化
   - 创建 `store/useLearningStore.ts`: Zustand 学习状态 store，含 stub API 占位
+- 添加文件系统 API 中间件 (Task 3)
+  - 创建 `src/server/files.ts`: 文件系统读写操作 (topics, knowledge-map, state, sessions, plan)
+  - 创建 `src/server/deepseek.ts`: DeepSeek API 客户端 (explain, chat, exercise, review, recommend, knowledge-map, adjust-plan)
+  - 创建 `src/server/execute.ts`: Python 代码执行器 (child_process, 5s 超时, 临时文件)
+  - 创建 `src/server/main.ts`: Vite 插件，注册全部 API 路由 (14 个端点)
+  - 更新 `vite.config.ts` 集成 learningApiPlugin
+
+---
+> commit: `39e9379`
 
 ---
 > commit: `5e3fb77`
