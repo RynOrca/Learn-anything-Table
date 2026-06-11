@@ -17,6 +17,15 @@
   - 内置 CORS、JSON 解析、静态文件服务、SPA fallback
   - `app/server/files.ts`: 导出 `getDataRoot()` 和 `invalidateTopicCache()` 函数
 
+- Task 6: 增强 Settings 页面 — 目录选择 + 主题检测 (`d9aed22`)
+  - 新增 Electron 环境下的"浏览..."按钮，调用原生文件夹选择器 (`window.electronAPI.selectFolder()`)
+  - 浏览器环境下"浏览..."按钮自动隐藏，仅显示文本输入框
+  - 新增"检测主题"按钮，调用 `GET /api/config/scan-topics` 扫描当前数据目录下的主题文件夹
+  - 检测结果以蓝色标签形式展示在数据目录卡片内
+  - 保存设置时同步调用 `POST /api/config/data-dir` 持久化到 .env 文件
+  - 组件挂载时自动从后端获取当前数据目录（与实际 .env 配置同步）
+  - 版本卡片简化为静态版本号显示
+
 - Task 3: Electron 主进程 (`app/electron/`) (c94d6dd)
   - `app/electron/main.cjs`: Electron 主进程入口，无边框窗口 + 窗口状态持久化
   - `app/electron/preload.cjs`: 安全的 contextBridge API，暴露窗口控制和目录选择
