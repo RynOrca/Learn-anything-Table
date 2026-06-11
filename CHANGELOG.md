@@ -7,8 +7,10 @@
 - 创建 Python 体系化学习计划 (`python-learning-plan.md`)
 - 创建任务规划文件 (`task_plan.md` / `findings.md` / `progress.md`)
 - 计划覆盖 6 大阶段、52 个知识点：基础语法与数据结构 → 函数与面向对象 → 内置函数与标准库 → 工程化开发 → 常用库 + GUI → 深度学习
+- 将所有 Python 相关文件整理到 `Python/` 目录下
 
 ---
+> commit: `c36aa0e`
 
 ## [v1.0.0] — 2026-06-07
 
