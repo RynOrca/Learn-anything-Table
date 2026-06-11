@@ -4,7 +4,7 @@ import yaml from 'js-yaml';
 
 // Process runs from app/ directory when using Vite dev server.
 // DATA_ROOT is the project root — configurable via LEARN_ANYTHING_DATA_DIR env var.
-function getDataRoot(): string {
+export function getDataRoot(): string {
   return process.env.LEARN_ANYTHING_DATA_DIR || path.resolve(process.cwd(), '..');
 }
 
@@ -82,7 +82,7 @@ function locateTopic(topicName: string): TopicLocation | null {
 }
 
 // Invalidate cache (useful after creating new topics)
-function invalidateTopicCache(): void {
+export function invalidateTopicCache(): void {
   _topicCache = null;
 }
 
