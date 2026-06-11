@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useLearningStore } from '../store/useLearningStore';
@@ -168,21 +169,20 @@ const centerStyle: React.CSSProperties = {
 };
 
 export default function Practice() {
+  const [searchParams] = useSearchParams();
   const {
     state,
     knowledgeMap,
     topicName,
     saveSession,
     updateConceptStatus,
+    exerciseData,
+    setExerciseData,
+    clearExerciseData,
   } = useLearningStore();
 
-  const [selectedConceptPath, setSelectedConceptPath] = useState('');
-  const [exercise, setExercise] = useState<ExercisePrompt | null>(null);
-  const [exerciseRaw, setExerciseRaw] = useState('');
-  const [code, setCode] = useState('');
-  const [output, setOutput] = useState('');
-  const [review, setReview] = useState<AIReviewResult | null>(null);
-  const [reviewRaw, setReviewRaw] = useState('');
+  const conceptFromUrl = searchParams.get('concept') ?? '';
+  const [selectedConceptPath, setSelectedConceptPath] = useState(conceptFromUrl);
   const [loading, setLoading] = useState(false);
   const [loadingLabel, setLoadingLabel] = useState('');
   const [showHints, setShowHints] = useState(false);
@@ -190,6 +190,19 @@ export default function Practice() {
 
   const concepts = state?.concepts ?? [];
   const selectedConcept = concepts.find((c) => c.path === selectedConceptPath);
+
+  // Read exercise state from store (persisted across navigation)
+  const ed = exerciseData[selectedConceptPath] ?? {
+    exercise: null,
+    exerciseRaw: '',
+    code: '',
+    output: '',
+    review: null,
+    reviewRaw: '',
+  };
+  const { exercise, exerciseRaw, review, reviewRaw } = ed;
+  const code = ed.code;
+  const output = ed.output;
 
   // -------------------------------------------------------------------
   // Derived
@@ -210,13 +223,9 @@ export default function Practice() {
   const handleGenerate = async () => {
     if (!selectedConceptPath || !topicName || loading) return;
     setErrorMsg('');
-    setExercise(null);
-    setExerciseRaw('');
-    setCode('');
-    setOutput('');
-    setReview(null);
-    setReviewRaw('');
     setShowHints(false);
+    // Clear old exercise data for this concept
+    clearExerciseData(selectedConceptPath);
     setLoading(true);
     setLoadingLabel('AI 出题中...');
 
@@ -228,9 +237,14 @@ export default function Practice() {
         knowledgeMap ?? '',
       );
       const parsed = parseExercise(raw);
-      setExercise(parsed);
-      setExerciseRaw(raw);
-      setCode(parsed.starterCode);
+      setExerciseData(selectedConceptPath, {
+        exercise: parsed,
+        exerciseRaw: raw,
+        code: parsed.starterCode,
+        output: '',
+        review: null,
+        reviewRaw: '',
+      });
     } catch (e) {
       setErrorMsg(`出题失败：${(e as Error).message}`);
     } finally {
@@ -242,7 +256,8 @@ export default function Practice() {
   const handleRun = async () => {
     if (!code.trim() || loading) return;
     setErrorMsg('');
-    setOutput('');
+    // Save current code to store before running
+    setExerciseData(selectedConceptPath, { code, output: '' });
     setLoading(true);
     setLoadingLabel('代码运行中...');
 
@@ -263,9 +278,10 @@ export default function Practice() {
       if (!result.stdout && !result.stderr) {
         lines.push(`(exit code: ${result.exitCode})`);
       }
-      setOutput(lines.join('\n'));
+      const outputStr = lines.join('\n');
+      setExerciseData(selectedConceptPath, { output: outputStr });
     } catch (e) {
-      setOutput(`运行失败：${(e as Error).message}`);
+      setExerciseData(selectedConceptPath, { output: `运行失败：${(e as Error).message}` });
     } finally {
       setLoading(false);
       setLoadingLabel('');
@@ -275,8 +291,7 @@ export default function Practice() {
   const handleReview = async () => {
     if (!code.trim() || !exercise || !selectedConceptPath || loading) return;
     setErrorMsg('');
-    setReview(null);
-    setReviewRaw('');
+    setExerciseData(selectedConceptPath, { code, review: null, reviewRaw: '' });
     setLoading(true);
     setLoadingLabel('AI 审阅中...');
 
@@ -288,8 +303,7 @@ export default function Practice() {
         goalText,
       );
       const parsed = parseReview(rawReview);
-      setReview(parsed);
-      setReviewRaw(rawReview);
+      setExerciseData(selectedConceptPath, { review: parsed, reviewRaw: rawReview });
     } catch (e) {
       setErrorMsg(`审阅失败：${(e as Error).message}`);
     } finally {
@@ -448,12 +462,6 @@ export default function Practice() {
           value={selectedConceptPath}
           onChange={(e) => {
             setSelectedConceptPath(e.target.value);
-            setExercise(null);
-            setExerciseRaw('');
-            setCode('');
-            setOutput('');
-            setReview(null);
-            setReviewRaw('');
             setShowHints(false);
             setErrorMsg('');
           }}
@@ -583,6 +591,7 @@ export default function Practice() {
                 任务描述
               </p>
               <div
+                className="markdown-content"
                 style={{
                   fontSize: 'var(--font-size-sm)',
                   color: 'var(--color-text-primary)',
@@ -715,7 +724,7 @@ export default function Practice() {
           </p>
           <CodeEditor
             value={code}
-            onChange={(v) => setCode(v)}
+            onChange={(v) => setExerciseData(selectedConceptPath, { code: v })}
             readOnly={loading}
           />
         </div>
@@ -830,6 +839,7 @@ export default function Practice() {
                 做得好的地方
               </p>
               <div
+                className="markdown-content"
                 style={{
                   fontSize: 'var(--font-size-sm)',
                   color: 'var(--color-text-primary)',
@@ -857,6 +867,7 @@ export default function Practice() {
                 改进建议
               </p>
               <div
+                className="markdown-content"
                 style={{
                   fontSize: 'var(--font-size-sm)',
                   color: 'var(--color-text-primary)',
@@ -912,6 +923,7 @@ export default function Practice() {
                 代码质量建议
               </p>
               <div
+                className="markdown-content"
                 style={{
                   fontSize: 'var(--font-size-sm)',
                   color: 'var(--color-text-primary)',

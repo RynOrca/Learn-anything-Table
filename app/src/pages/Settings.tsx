@@ -87,7 +87,6 @@ export default function Settings() {
   const store = useSettingsStore();
   const [localApiKey, setLocalApiKey] = useState(store.deepseekApiKey);
   const [localDataDir, setLocalDataDir] = useState(store.dataDir);
-  const [localFontSize, setLocalFontSize] = useState(store.fontSize);
   const [saved, setSaved] = useState(false);
   const [versionInfo, setVersionInfo] = useState<GitHubRelease | null>(null);
   const [checking, setChecking] = useState(false);
@@ -95,7 +94,6 @@ export default function Settings() {
   const handleSave = () => {
     store.setApiKey(localApiKey);
     store.setDataDir(localDataDir);
-    store.setFontSize(localFontSize);
     store.saveSettings();
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -145,30 +143,6 @@ export default function Settings() {
           onChange={(e) => setLocalDataDir(e.currentTarget.value)}
           style={inputStyle}
         />
-      </SectionCard>
-
-      {/* Font Size */}
-      <SectionCard title="字体大小">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <input
-            type="range"
-            min={10}
-            max={20}
-            value={localFontSize}
-            onChange={(e) => setLocalFontSize(Number(e.currentTarget.value))}
-            style={{ flex: 1 }}
-          />
-          <span
-            style={{
-              fontSize: 'var(--font-size-base)',
-              color: 'var(--color-text-secondary)',
-              minWidth: 40,
-              textAlign: 'right',
-            }}
-          >
-            {localFontSize}px
-          </span>
-        </div>
       </SectionCard>
 
       {/* Save Button */}

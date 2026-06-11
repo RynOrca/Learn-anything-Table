@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useLearningStore } from '../store/useLearningStore';
 import SessionCard from '../components/SessionCard';
 
 export default function History() {
+  const [searchParams] = useSearchParams();
+  const conceptFromUrl = searchParams.get('concept') ?? '';
   const { sessions, loadSessions, loading, error } = useLearningStore();
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(conceptFromUrl);
 
   const handleSearch = useCallback(() => {
     loadSessions(search || undefined);
@@ -13,6 +16,13 @@ export default function History() {
   useEffect(() => {
     loadSessions();
   }, [loadSessions]);
+
+  // Auto-search when coming from another page with concept param
+  useEffect(() => {
+    if (conceptFromUrl) {
+      loadSessions(conceptFromUrl);
+    }
+  }, [conceptFromUrl, loadSessions]);
 
   if (error) {
     return (

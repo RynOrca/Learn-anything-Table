@@ -1,5 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useLearningStore } from '../store/useLearningStore';
 import StatusBadge from '../components/StatusBadge';
 import type { Concept, ConceptStatus } from '../types';
@@ -168,7 +170,7 @@ export default function KnowledgeMap() {
         </div>
       </header>
 
-      {/* ======== Knowledge Map Raw Text ======== */}
+      {/* ======== Knowledge Map Markdown ======== */}
       {knowledgeMap && (
         <section
           style={{
@@ -176,16 +178,15 @@ export default function KnowledgeMap() {
             borderRadius: 'var(--radius-md)',
             background: 'var(--color-bg-card)',
             border: '1px solid var(--color-border)',
-            whiteSpace: 'pre-wrap',
             fontSize: 'var(--font-size-sm)',
             color: 'var(--color-text-secondary)',
-            lineHeight: 1.8,
             fontFamily: 'var(--font-serif)',
-            maxHeight: 320,
+            maxHeight: 400,
             overflowY: 'auto',
           }}
+          className="markdown-content"
         >
-          {knowledgeMap}
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{knowledgeMap}</ReactMarkdown>
         </section>
       )}
 
@@ -403,7 +404,7 @@ export default function KnowledgeMap() {
                 fontFamily: 'var(--font-serif)',
                 transition: 'background 0.15s',
               }}
-              onClick={() => navigate('/chat')}
+              onClick={() => navigate(`/chat?concept=${encodeURIComponent(selectedConcept.path)}`)}
               onMouseEnter={(e) => {
                 (e.currentTarget as HTMLButtonElement).style.background =
                   'var(--color-bg-blue)';
@@ -427,7 +428,7 @@ export default function KnowledgeMap() {
                 fontFamily: 'var(--font-serif)',
                 transition: 'background 0.15s',
               }}
-              onClick={() => navigate('/practice')}
+              onClick={() => navigate(`/practice?concept=${encodeURIComponent(selectedConcept.path)}`)}
               onMouseEnter={(e) => {
                 (e.currentTarget as HTMLButtonElement).style.background =
                   'var(--color-bg-yellow)';
@@ -451,7 +452,7 @@ export default function KnowledgeMap() {
                 fontFamily: 'var(--font-serif)',
                 transition: 'background 0.15s',
               }}
-              onClick={() => navigate('/history')}
+              onClick={() => navigate(`/history?concept=${encodeURIComponent(selectedConcept.path)}`)}
               onMouseEnter={(e) => {
                 (e.currentTarget as HTMLButtonElement).style.background =
                   'var(--color-bg-input)';

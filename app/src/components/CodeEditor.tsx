@@ -13,7 +13,7 @@ export default function CodeEditor({ value, onChange, readOnly }: CodeEditorProp
       spellCheck={false}
       style={{
         width: '100%',
-        minHeight: 200,
+        minHeight: 600,
         background: 'var(--color-bg-page)',
         color: 'var(--color-text-primary)',
         border: '1px solid var(--color-border)',

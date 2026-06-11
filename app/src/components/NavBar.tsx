@@ -3,11 +3,10 @@ import TopicSelector from './TopicSelector';
 
 const navItems = [
   { to: '/', label: '概览' },
-  { to: '/map', label: '地图' },
+  { to: '/roadmap', label: '路线' },
   { to: '/history', label: '历史' },
   { to: '/chat', label: '对话' },
   { to: '/practice', label: '练习' },
-  { to: '/roadmap', label: '路线' },
   { to: '/settings', label: '设置' },
 ];
 
@@ -17,8 +16,8 @@ export default function NavBar() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
-      height: 48,
-      padding: '0 20px',
+      height: 64,
+      padding: '0 32px',
       borderBottom: '1px solid var(--color-border)',
       background: 'var(--color-bg-card)',
       flexShrink: 0,

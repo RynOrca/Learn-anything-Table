@@ -79,6 +79,34 @@ export async function fetchTopics(): Promise<string[]> {
   return data.topics ?? [];
 }
 
+export async function createTopic(topicName: string): Promise<void> {
+  const res = await fetch('/api/topics', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ topicName }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({ error: 'Unknown error' }))) as { error: string };
+    throw new Error(data.error ?? `创建主题失败 (${res.status})`);
+  }
+}
+
+export async function createTopicWithPlan(
+  topicName: string,
+  planContent: string,
+  knowledgeMapContent: string,
+): Promise<void> {
+  const res = await fetch('/api/topics', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ topicName, planContent, knowledgeMapContent }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({ error: 'Unknown error' }))) as { error: string };
+    throw new Error(data.error ?? `创建主题失败 (${res.status})`);
+  }
+}
+
 export async function fetchKnowledgeMap(topicName: string): Promise<string> {
   const res = await fetch(`/api/topics/${encodeURIComponent(topicName)}/knowledge-map`);
   if (!res.ok) throw new Error(`获取知识地图失败 (${res.status})`);
@@ -179,11 +207,43 @@ export async function createSession(
   return data.filename;
 }
 
+export async function deleteSession(
+  topicName: string,
+  filename: string,
+): Promise<void> {
+  const res = await fetch(`/api/topics/${encodeURIComponent(topicName)}/sessions/${encodeURIComponent(filename)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error(`删除会话失败 (${res.status})`);
+}
+
+export async function deleteTopic(topicName: string): Promise<void> {
+  const res = await fetch(`/api/topics/${encodeURIComponent(topicName)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({ error: 'Unknown error' }))) as { error: string };
+    throw new Error(data.error ?? `删除主题失败 (${res.status})`);
+  }
+}
+
 export async function fetchPlan(topicName: string): Promise<string> {
   const res = await fetch(`/api/topics/${encodeURIComponent(topicName)}/plan`);
   if (!res.ok) throw new Error(`获取学习计划失败 (${res.status})`);
   const data = (await res.json()) as { content: string };
   return data.content ?? '';
+}
+
+export async function updatePlan(topicName: string, content: string): Promise<void> {
+  const res = await fetch(`/api/topics/${encodeURIComponent(topicName)}/plan`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({ error: 'Unknown error' }))) as { error: string };
+    throw new Error(data.error ?? `更新计划失败 (${res.status})`);
+  }
 }
 
 export async function executePython(code: string): Promise<{ stdout: string; stderr: string; exitCode: number; timedOut: boolean }> {

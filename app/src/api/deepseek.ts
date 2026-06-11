@@ -111,6 +111,13 @@ export async function generateKnowledgeMap(topicName: string): Promise<string> {
   return data.content;
 }
 
+export async function generateLearningPlan(topicName: string): Promise<string> {
+  const data = await postAI<{ content: string }>('/api/ai/learning-plan', {
+    topicName,
+  });
+  return data.content;
+}
+
 export async function adjustPlan(
   currentPlan: string,
   currentState: string,
@@ -118,6 +125,13 @@ export async function adjustPlan(
   const data = await postAI<{ content: string }>('/api/ai/adjust-plan', {
     currentPlan,
     currentState,
+  });
+  return data.content;
+}
+
+export async function polishPlan(currentPlan: string): Promise<string> {
+  const data = await postAI<{ content: string }>('/api/ai/polish-plan', {
+    currentPlan,
   });
   return data.content;
 }

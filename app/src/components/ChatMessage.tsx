@@ -4,20 +4,22 @@ import type { ChatMessage as ChatMessageType } from '../types';
 
 interface ChatMessageProps {
   message: ChatMessageType;
+  onSave?: () => void;
+  showSaved?: boolean;
 }
 
-export default function ChatMessage({ message }: ChatMessageProps) {
+export default function ChatMessage({ message, onSave, showSaved }: ChatMessageProps) {
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
 
   if (isSystem) {
     return (
-      <div style={{ textAlign: 'center', margin: '12px 0' }}>
+      <div style={{ textAlign: 'center', margin: '16px 0' }}>
         <span style={{
           fontSize: 'var(--font-size-xs)',
           color: 'var(--color-text-tertiary)',
           background: 'var(--color-bg-card)',
-          padding: '4px 12px',
+          padding: '6px 16px',
           borderRadius: 'var(--radius-pill)',
           border: '1px solid var(--color-border)',
         }}>
@@ -32,7 +34,7 @@ export default function ChatMessage({ message }: ChatMessageProps) {
       display: 'flex',
       flexDirection: 'column',
       alignItems: isUser ? 'flex-end' : 'flex-start',
-      marginBottom: 12,
+      marginBottom: 16,
     }}>
       <div style={{
         fontSize: 'var(--font-size-xs)',
@@ -43,15 +45,14 @@ export default function ChatMessage({ message }: ChatMessageProps) {
       }}>
         {isUser ? '你' : 'AI 教师'}
       </div>
-      <div style={{
+      <div className="markdown-content" style={{
         maxWidth: '80%',
         background: isUser ? 'var(--color-bg-blue)' : 'var(--color-bg-card)',
         border: `1px solid ${isUser ? '#1f2b3d' : 'var(--color-border)'}`,
         borderRadius: 'var(--radius-md)',
-        padding: '12px 16px',
+        padding: '14px 18px',
         fontSize: 'var(--font-size-sm)',
         color: 'var(--color-text-primary)',
-        lineHeight: 1.8,
       }}>
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
@@ -82,7 +83,7 @@ export default function ChatMessage({ message }: ChatMessageProps) {
                         borderRadius: 'var(--radius-sm)',
                         color: 'var(--color-text-secondary)',
                         padding: '2px 8px',
-                        fontSize: 'var(--font-size-xs)',
+                        fontSize: '10px',
                         cursor: 'pointer',
                         fontFamily: 'var(--font-serif)',
                       }}
@@ -109,6 +110,28 @@ export default function ChatMessage({ message }: ChatMessageProps) {
           {message.content}
         </ReactMarkdown>
       </div>
+      {/* Save button after assistant messages */}
+      {!isUser && onSave && (
+        <button
+          onClick={onSave}
+          disabled={showSaved}
+          style={{
+            marginTop: 6,
+            marginLeft: 4,
+            padding: '4px 12px',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--color-border)',
+            background: showSaved ? 'var(--color-bg-green)' : 'transparent',
+            color: showSaved ? 'var(--color-accent-green)' : 'var(--color-text-tertiary)',
+            fontSize: '10px',
+            fontFamily: 'var(--font-serif)',
+            cursor: showSaved ? 'default' : 'pointer',
+            opacity: showSaved ? 0.8 : 1,
+          }}
+        >
+          {showSaved ? '已保存' : '保存至历史'}
+        </button>
+      )}
     </div>
   );
 }

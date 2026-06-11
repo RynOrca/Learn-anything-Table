@@ -7,15 +7,95 @@ import yaml from 'js-yaml';
 const DATA_ROOT = path.resolve(process.cwd(), '..');
 
 // ---------------------------------------------------------------------------
+// Topic discovery
+//
+// Actual directory layout (topics are self-contained folders at DATA_ROOT):
+//
+//   DATA_ROOT/
+//     Python/                          ← topic root folder
+//       .learn/topics/python/          ← topic data
+//         state.yaml
+//         knowledge-map.md
+//         sessions/*.md
+//       python-learning-plan.md        ← plan file at topic root
+//       progress.md
+// ---------------------------------------------------------------------------
+
+interface TopicLocation {
+  name: string;     // original-case topic name (matches state.yaml)
+  dataDir: string;  // path to .learn/topics/<name>/
+  rootDir: string;  // path to the topic root folder (e.g., DATA_ROOT/Python/)
+}
+
+let _topicCache: TopicLocation[] | null = null;
+
+function discoverTopics(): TopicLocation[] {
+  if (_topicCache) return _topicCache;
+
+  const result: TopicLocation[] = [];
+  if (!fs.existsSync(DATA_ROOT)) return result;
+
+  let rootEntries: fs.Dirent[];
+  try {
+    rootEntries = fs.readdirSync(DATA_ROOT, { withFileTypes: true });
+  } catch {
+    _topicCache = result;
+    return result;
+  }
+
+  // Skip directories that are not topic folders
+  const skipDirs = new Set(['app', 'docs', 'node_modules', '.git', '.claude', '.superpowers']);
+
+  for (const entry of rootEntries) {
+    if (!entry.isDirectory()) continue;
+    if (entry.name.startsWith('.') || skipDirs.has(entry.name)) continue;
+
+    const innerTopics = path.join(DATA_ROOT, entry.name, '.learn', 'topics');
+    if (!fs.existsSync(innerTopics)) continue;
+
+    let topicDirs: fs.Dirent[];
+    try {
+      topicDirs = fs.readdirSync(innerTopics, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const topic of topicDirs) {
+      if (!topic.isDirectory()) continue;
+      result.push({
+        name: topic.name,
+        dataDir: path.join(innerTopics, topic.name),
+        rootDir: path.join(DATA_ROOT, entry.name),
+      });
+    }
+  }
+
+  _topicCache = result;
+  return result;
+}
+
+function locateTopic(topicName: string): TopicLocation | null {
+  const lower = topicName.toLowerCase();
+  return discoverTopics().find((t) => t.name.toLowerCase() === lower) ?? null;
+}
+
+// Invalidate cache (useful after creating new topics)
+function invalidateTopicCache(): void {
+  _topicCache = null;
+}
+
+// ---------------------------------------------------------------------------
 // Path helpers
 // ---------------------------------------------------------------------------
 
 function topicsDir(): string {
+  // Fallback — topics are discovered via discoverTopics(), but this
+  // provides a default path for cases where a topic hasn't been created yet.
   return path.join(DATA_ROOT, '.learn', 'topics');
 }
 
 function topicDir(topicName: string): string {
-  return path.join(topicsDir(), topicName);
+  return locateTopic(topicName)?.dataDir ?? path.join(topicsDir(), topicName);
 }
 
 function sessionsDir(topicName: string): string {
@@ -50,14 +130,7 @@ export interface KnowledgeMapNode {
 // ---------------------------------------------------------------------------
 
 export function listTopics(): string[] {
-  const dir = topicsDir();
-  if (!fs.existsSync(dir)) {
-    return [];
-  }
-  return fs
-    .readdirSync(dir, { withFileTypes: true })
-    .filter((d) => d.isDirectory())
-    .map((d) => d.name);
+  return discoverTopics().map((t) => t.name);
 }
 
 // ---------------------------------------------------------------------------
@@ -227,6 +300,26 @@ export function getSessionDetail(
 }
 
 // ---------------------------------------------------------------------------
+// deleteSessionFile
+// ---------------------------------------------------------------------------
+
+export function deleteSessionFile(
+  topicName: string,
+  filename: string,
+): boolean {
+  const filePath = path.join(sessionsDir(topicName), filename);
+  if (!fs.existsSync(filePath)) {
+    return false;
+  }
+  // Safety: ensure the filename doesn't contain path traversal
+  if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+    return false;
+  }
+  fs.unlinkSync(filePath);
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // createSession
 // ---------------------------------------------------------------------------
 
@@ -255,44 +348,203 @@ export function createSession(
 // ---------------------------------------------------------------------------
 
 export function getPlan(topicName: string): string | null {
-  // Strategy: read the .learn/topics/<topic>/state.yaml to find the topic root,
-  // but here we scan the filesystem. Since topics are stored alongside their
-  // project dirs, we look for directories matching the topic name under DATA_ROOT
-  // that contain *plan*.md files.
+  const loc = locateTopic(topicName);
+  if (!loc) return null;
 
-  // First, check if topicDir exists
-  const td = topicDir(topicName);
-  if (!fs.existsSync(td)) {
-    return null;
-  }
-
-  // The project root for the topic is typically DATA_ROOT/<TopicName>/
-  // Walk through DATA_ROOT looking for matching directories
+  // Plan files live in the topic root directory (e.g., Python/python-learning-plan.md)
   try {
-    const rootEntries = fs.readdirSync(DATA_ROOT, { withFileTypes: true });
-    for (const entry of rootEntries) {
-      if (!entry.isDirectory()) continue;
-      const dirPath = path.join(DATA_ROOT, entry.name);
-      try {
-        const dirFiles = fs.readdirSync(dirPath);
-        for (const f of dirFiles) {
-          const lower = f.toLowerCase();
-          if (
-            lower.includes('plan') &&
-            f.endsWith('.md') &&
-            // Match topic: the directory name should contain the topic name (case-insensitive)
-            entry.name.toLowerCase().includes(topicName.toLowerCase())
-          ) {
-            return fs.readFileSync(path.join(dirPath, f), 'utf-8');
-          }
-        }
-      } catch {
-        // Skip directories we cannot read
+    const dirFiles = fs.readdirSync(loc.rootDir);
+    for (const f of dirFiles) {
+      const lower = f.toLowerCase();
+      if (lower.includes('plan') && f.endsWith('.md')) {
+        return fs.readFileSync(path.join(loc.rootDir, f), 'utf-8');
       }
     }
   } catch {
-    // Fallback
+    // Directory unreadable
   }
 
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// updatePlan — overwrite plan file and update state.yaml concepts
+// ---------------------------------------------------------------------------
+
+export function updatePlan(topicName: string, planMd: string): boolean {
+  const loc = locateTopic(topicName);
+  if (!loc) return false;
+
+  // Find and overwrite the plan file
+  let planFile: string | null = null;
+  try {
+    const dirFiles = fs.readdirSync(loc.rootDir);
+    for (const f of dirFiles) {
+      const lower = f.toLowerCase();
+      if (lower.includes('plan') && f.endsWith('.md')) {
+        planFile = f;
+        break;
+      }
+    }
+  } catch {
+    return false;
+  }
+
+  if (!planFile) return false;
+
+  // Write the plan file
+  fs.writeFileSync(path.join(loc.rootDir, planFile), planMd, 'utf-8');
+
+  // Update state.yaml concepts from the new plan
+  const statePath = path.join(loc.dataDir, 'state.yaml');
+  if (fs.existsSync(statePath)) {
+    const raw = fs.readFileSync(statePath, 'utf-8');
+    const state = yaml.load(raw) as TopicState;
+
+    // Parse new concepts from the plan
+    const newConcepts = parsePlanToConcepts(planMd);
+
+    // Merge: keep existing concept data (status, confidence, etc.) for matching paths
+    const existingMap = new Map<string, ConceptState>();
+    for (const c of state.concepts) {
+      existingMap.set(c.path, c);
+    }
+
+    state.concepts = newConcepts.map((nc) => {
+      const existing = existingMap.get(nc.path);
+      if (existing) {
+        return existing; // Preserve existing status/confidence
+      }
+      return nc; // New concept
+    });
+
+    const yamlContent = yaml.dump(state, {
+      indent: 2,
+      lineWidth: -1,
+      noRefs: true,
+      sortKeys: false,
+    });
+    fs.writeFileSync(statePath, yamlContent, 'utf-8');
+  }
+
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// parsePlanToConcepts — extract concept paths from plan Markdown
+// ---------------------------------------------------------------------------
+
+function parsePlanToConcepts(md: string): Array<{
+  path: string;
+  status: string;
+  last_practiced: string | null;
+  practice_count: number;
+  confidence: number;
+}> {
+  const concepts: Array<{
+    path: string;
+    status: string;
+    last_practiced: string | null;
+    practice_count: number;
+    confidence: number;
+  }> = [];
+  const lines = md.split('\n');
+  let currentStage = '';
+
+  for (const line of lines) {
+    // ## 阶段N：名称
+    const stageMatch = line.match(/^##\s*阶段\s*[^\s：:]+[：:]\s*(.+)/);
+    if (stageMatch) {
+      currentStage = stageMatch[1].trim();
+      continue;
+    }
+
+    if (!currentStage) continue;
+
+    // ### N.M 概念名
+    const conceptMatch = line.match(/^###\s+\d+\.\d+\.?\s*(.+)/);
+    if (conceptMatch) {
+      concepts.push({
+        path: `${currentStage}/${conceptMatch[1].trim()}`,
+        status: 'unexplored',
+        last_practiced: null,
+        practice_count: 0,
+        confidence: 0,
+      });
+    }
+  }
+
+  return concepts;
+}
+
+// ---------------------------------------------------------------------------
+// createTopic
+// ---------------------------------------------------------------------------
+
+export function createTopic(
+  topicName: string,
+  options?: { planContent?: string; knowledgeMapContent?: string },
+): { success: true; path: string } {
+  const safeName = topicName.replace(/[/\\?%*:|"<>]/g, '-').toLowerCase();
+  const rootDir = path.join(DATA_ROOT, safeName.charAt(0).toUpperCase() + safeName.slice(1));
+  const dataDir = path.join(rootDir, '.learn', 'topics', safeName);
+  const sessionsDir = path.join(dataDir, 'sessions');
+  const today = new Date().toISOString().split('T')[0];
+
+  // Create directories
+  fs.mkdirSync(sessionsDir, { recursive: true });
+
+  // Create state.yaml — parse concepts from plan if available
+  const parsedConcepts = options?.planContent
+    ? parsePlanToConcepts(options.planContent)
+    : [];
+
+  const initialState = {
+    topic: safeName,
+    created: today,
+    concepts: parsedConcepts,
+  };
+
+  fs.writeFileSync(
+    path.join(dataDir, 'state.yaml'),
+    yaml.dump(initialState, { indent: 2, lineWidth: -1, noRefs: true, sortKeys: false }),
+    'utf-8',
+  );
+
+  // Create knowledge-map.md
+  const kmContent = options?.knowledgeMapContent
+    || `# ${topicName} 知识地图\n\n> 创建于 ${today}\n\n## 基础知识\n\n_使用 AI 生成知识地图，或手动编辑此文件_\n`;
+  fs.writeFileSync(path.join(dataDir, 'knowledge-map.md'), kmContent, 'utf-8');
+
+  // Create plan file
+  const planContent = options?.planContent
+    || `# ${topicName} 学习计划\n\n> 创建于 ${today}\n\n## 阶段一：基础入门\n\n_使用 AI 调整路线，或手动编辑此文件_\n`;
+  fs.writeFileSync(path.join(rootDir, `${safeName}-learning-plan.md`), planContent, 'utf-8');
+
+  // Create progress.md
+  fs.writeFileSync(path.join(rootDir, 'progress.md'), `# ${topicName} 学习进度\n\n`, 'utf-8');
+
+  invalidateTopicCache();
+  return { success: true, path: dataDir };
+}
+
+// ---------------------------------------------------------------------------
+// deleteTopic
+// ---------------------------------------------------------------------------
+
+export function deleteTopic(topicName: string): boolean {
+  const loc = locateTopic(topicName);
+  if (!loc) return false;
+
+  // Safety: ensure we're deleting inside DATA_ROOT and the path looks valid
+  const rootDir = loc.rootDir;
+  if (!rootDir.startsWith(DATA_ROOT) || rootDir === DATA_ROOT) return false;
+
+  try {
+    fs.rmSync(rootDir, { recursive: true, force: true });
+    invalidateTopicCache();
+    return true;
+  } catch {
+    return false;
+  }
 }
