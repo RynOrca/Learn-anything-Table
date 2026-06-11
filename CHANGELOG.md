@@ -15,9 +15,13 @@
   - 字体: Noto Serif SC (思源宋体)
   - index.html / main.tsx / App.tsx 入口
   - .env.example 环境变量模板
+- 添加类型定义与状态管理 (Task 2)
+  - 创建 `types/index.ts`: Concept, TopicState, DashboardStats, Settings 等核心类型
+  - 创建 `store/useSettingsStore.ts`: Zustand 设置 store，支持 localStorage 持久化
+  - 创建 `store/useLearningStore.ts`: Zustand 学习状态 store，含 stub API 占位
 
 ---
-> commit: `d33c30a`
+> commit: `5e3fb77`
 
 ---
 > commit: `c36aa0e`
