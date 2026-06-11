@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { TopicState, DashboardStats, SessionMeta, SessionDetail } from '../types';
+import type { TopicState, DashboardStats, SessionMeta, SessionDetail, ConceptStatus } from '../types';
 
 // Stub API - will be replaced by actual api/files.ts in Task 4
 const filesApi = {
@@ -7,7 +7,7 @@ const filesApi = {
   fetchKnowledgeMap: async (_name: string) => { throw new Error('Not implemented'); },
   fetchSessions: async (_name: string, _search?: string) => [] as SessionMeta[],
   fetchSessionDetail: async (_name: string, _filename: string) => null as SessionDetail | null,
-  updateState: async (_name: string, _state: TopicState, _path: string, _status: string, _confidence: number) => {},
+  updateState: async (_name: string, _state: TopicState, _path: string, _status: ConceptStatus, _confidence: number) => {},
   createSession: async (_name: string, _concept: string, _type: string, _content: string) => {},
   computeStats: (_state: TopicState, _sessions: SessionMeta[]) => null as unknown as DashboardStats,
 };
@@ -24,7 +24,7 @@ interface LearningState {
   loadTopic: (name: string) => Promise<void>;
   loadSessions: (search?: string) => Promise<void>;
   loadSessionDetail: (filename: string) => Promise<SessionDetail | null>;
-  updateConceptStatus: (path: string, status: string, confidence: number) => Promise<void>;
+  updateConceptStatus: (path: string, status: ConceptStatus, confidence: number) => Promise<void>;
   saveSession: (conceptName: string, type: 'explain' | 'practice', content: string) => Promise<void>;
   refreshStats: () => void;
 }
@@ -67,10 +67,15 @@ export const useLearningStore = create<LearningState>((set, get) => ({
   loadSessionDetail: async (filename: string) => {
     const { topicName } = get();
     if (!topicName) return null;
-    return filesApi.fetchSessionDetail(topicName, filename);
+    try {
+      return await filesApi.fetchSessionDetail(topicName, filename);
+    } catch (e) {
+      set({ error: (e as Error).message });
+      return null;
+    }
   },
 
-  updateConceptStatus: async (path: string, status: string, confidence: number) => {
+  updateConceptStatus: async (path: string, status: ConceptStatus, confidence: number) => {
     const { topicName, state } = get();
     if (!topicName || !state) return;
     try {

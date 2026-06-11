@@ -3,8 +3,8 @@ export type ConceptStatus = 'mastered' | 'in_progress' | 'needs_practice' | 'une
 export interface Concept {
   path: string;
   status: ConceptStatus;
-  last_practiced: string | null;
-  practice_count: number;
+  lastPracticed: string | null;
+  practiceCount: number;
   confidence: number;
 }
 

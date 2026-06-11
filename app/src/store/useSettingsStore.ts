@@ -38,10 +38,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   saveSettings: () => {
     const { deepseekApiKey, dataDir, fontSize } = get();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      deepseekApiKey,
-      dataDir,
-      fontSize,
-    }));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        deepseekApiKey,
+        dataDir,
+        fontSize,
+      }));
+    } catch {
+      // silently fail if localStorage is unavailable
+    }
   },
 }));
