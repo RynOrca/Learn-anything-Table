@@ -1,8 +1,17 @@
 # Changelog
 
-## [Unreleased] — 2026-06-11
+## [Unreleased] — 2026-06-12
 
 ### Added
+
+- Task 1: Electron 桌面应用基础设施
+  - 安装依赖: express, cors, dotenv, electron, electron-builder, tsx, concurrently, wait-on
+  - 创建目录结构: `app/electron/`, `app/server/`, `app/public/`
+  - 复制 server 文件到 `app/server/` (files.ts, deepseek.ts, execute.ts)
+  - `app/server/files.ts`: DATA_ROOT 改为 `getDataRoot()` 函数，支持 `LEARN_ANYTHING_DATA_DIR` 环境变量配置
+
+---
+> commit: `fc11c7f`
 
 - 创建 Python 体系化学习计划 (`python-learning-plan.md`)
 - 创建任务规划文件 (`task_plan.md` / `findings.md` / `progress.md`)
