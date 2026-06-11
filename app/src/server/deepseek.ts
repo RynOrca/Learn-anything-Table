@@ -28,6 +28,7 @@ async function callDeepSeek(
       max_tokens: maxTokens,
       temperature,
     }),
+    signal: AbortSignal.timeout(30000),
   });
 
   if (!response.ok) {

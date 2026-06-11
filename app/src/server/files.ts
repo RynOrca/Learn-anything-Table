@@ -255,12 +255,6 @@ export function createSession(
 // ---------------------------------------------------------------------------
 
 export function getPlan(topicName: string): string | null {
-  // Look for plan files in the topic's project directory.
-  // The convention is that a topic lives in a directory whose name
-  // matches the topic name somewhere under DATA_ROOT.
-  // For example, DATA_ROOT/Python/python-learning-plan.md
-  const candidates = []; // No need for explicit candidates — scan topic-named dirs
-
   // Strategy: read the .learn/topics/<topic>/state.yaml to find the topic root,
   // but here we scan the filesystem. Since topics are stored alongside their
   // project dirs, we look for directories matching the topic name under DATA_ROOT

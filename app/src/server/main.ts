@@ -37,8 +37,8 @@ function getApiKey(
 // Helper: read JSON body from request
 // ---------------------------------------------------------------------------
 
-function readBody(req: { on: (e: string, cb: (chunk: Buffer) => void) => void }): Promise<string> {
-  return new Promise((resolve) => {
+function readBody(req: { on: (e: string, cb: (...args: unknown[]) => void) => void }): Promise<string> {
+  return new Promise((resolve, reject) => {
     let body = '';
     req.on('data', (chunk: Buffer) => {
       body += chunk.toString();
@@ -46,6 +46,7 @@ function readBody(req: { on: (e: string, cb: (chunk: Buffer) => void) => void })
     req.on('end', () => {
       resolve(body);
     });
+    req.on('error', reject);
   });
 }
 
@@ -149,12 +150,19 @@ export function learningApiPlugin(): Plugin {
           // -----------------------------------------------------------------
           if (params && method === 'PUT') {
             const bodyRaw = await readBody(req);
-            const body = JSON.parse(bodyRaw) as {
+            let body: {
               currentState: Record<string, unknown>;
               conceptPath: string;
               newStatus: string;
               newConfidence: number;
             };
+            try {
+              body = JSON.parse(bodyRaw);
+            } catch {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Invalid JSON' }));
+              return;
+            }
             const currentState = body.currentState as {
               topic: string;
               created: string;
@@ -206,11 +214,18 @@ export function learningApiPlugin(): Plugin {
           // -----------------------------------------------------------------
           if (params && method === 'POST') {
             const bodyRaw = await readBody(req);
-            const body = JSON.parse(bodyRaw) as {
+            let body: {
               conceptName: string;
               type: string;
               content: string;
             };
+            try {
+              body = JSON.parse(bodyRaw);
+            } catch {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Invalid JSON' }));
+              return;
+            }
             const filename = createSession(
               params.name,
               body.conceptName,
@@ -237,7 +252,14 @@ export function learningApiPlugin(): Plugin {
           // -----------------------------------------------------------------
           if (method === 'POST' && pathname === '/api/execute') {
             const bodyRaw = await readBody(req);
-            const body = JSON.parse(bodyRaw) as { code: string };
+            let body: { code: string };
+            try {
+              body = JSON.parse(bodyRaw);
+            } catch {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Invalid JSON' }));
+              return;
+            }
             const result = executePython(body.code);
             return json(res, result.exitCode === 0 ? 200 : 200, result);
           }
@@ -251,12 +273,19 @@ export function learningApiPlugin(): Plugin {
               return json(res, 401, { error: 'Missing API key in Authorization header' });
             }
             const bodyRaw = await readBody(req);
-            const body = JSON.parse(bodyRaw) as {
+            let body: {
               conceptName: string;
               knowledgeMap: string;
               userLevel: string;
               history: Array<{ role: string; content: string }>;
             };
+            try {
+              body = JSON.parse(bodyRaw);
+            } catch {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Invalid JSON' }));
+              return;
+            }
             const content = await explain(
               apiKey,
               body.conceptName,
@@ -276,11 +305,18 @@ export function learningApiPlugin(): Plugin {
               return json(res, 401, { error: 'Missing API key in Authorization header' });
             }
             const bodyRaw = await readBody(req);
-            const body = JSON.parse(bodyRaw) as {
+            let body: {
               conceptName: string;
               message: string;
               history: Array<{ role: string; content: string }>;
             };
+            try {
+              body = JSON.parse(bodyRaw);
+            } catch {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Invalid JSON' }));
+              return;
+            }
             const content = await chat(
               apiKey,
               body.conceptName,
@@ -299,11 +335,18 @@ export function learningApiPlugin(): Plugin {
               return json(res, 401, { error: 'Missing API key in Authorization header' });
             }
             const bodyRaw = await readBody(req);
-            const body = JSON.parse(bodyRaw) as {
+            let body: {
               conceptName: string;
               difficulty: string;
               knowledgeMap: string;
             };
+            try {
+              body = JSON.parse(bodyRaw);
+            } catch {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Invalid JSON' }));
+              return;
+            }
             const content = await generateExercise(
               apiKey,
               body.conceptName,
@@ -322,11 +365,18 @@ export function learningApiPlugin(): Plugin {
               return json(res, 401, { error: 'Missing API key in Authorization header' });
             }
             const bodyRaw = await readBody(req);
-            const body = JSON.parse(bodyRaw) as {
+            let body: {
               conceptName: string;
               userCode: string;
               exerciseGoal: string;
             };
+            try {
+              body = JSON.parse(bodyRaw);
+            } catch {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Invalid JSON' }));
+              return;
+            }
             const content = await reviewCode(
               apiKey,
               body.conceptName,
@@ -345,10 +395,17 @@ export function learningApiPlugin(): Plugin {
               return json(res, 401, { error: 'Missing API key in Authorization header' });
             }
             const bodyRaw = await readBody(req);
-            const body = JSON.parse(bodyRaw) as {
+            let body: {
               topicState: string;
               sessions: string;
             };
+            try {
+              body = JSON.parse(bodyRaw);
+            } catch {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Invalid JSON' }));
+              return;
+            }
             const content = await recommend(
               apiKey,
               body.topicState,
@@ -366,7 +423,14 @@ export function learningApiPlugin(): Plugin {
               return json(res, 401, { error: 'Missing API key in Authorization header' });
             }
             const bodyRaw = await readBody(req);
-            const body = JSON.parse(bodyRaw) as { topicName: string };
+            let body: { topicName: string };
+            try {
+              body = JSON.parse(bodyRaw);
+            } catch {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Invalid JSON' }));
+              return;
+            }
             const content = await generateKnowledgeMap(apiKey, body.topicName);
             return json(res, 200, { content });
           }
@@ -380,10 +444,17 @@ export function learningApiPlugin(): Plugin {
               return json(res, 401, { error: 'Missing API key in Authorization header' });
             }
             const bodyRaw = await readBody(req);
-            const body = JSON.parse(bodyRaw) as {
+            let body: {
               currentPlan: string;
               currentState: string;
             };
+            try {
+              body = JSON.parse(bodyRaw);
+            } catch {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Invalid JSON' }));
+              return;
+            }
             const content = await adjustPlan(
               apiKey,
               body.currentPlan,
