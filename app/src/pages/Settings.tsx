@@ -1,7 +1,5 @@
-import { useState, type ReactNode } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { useSettingsStore } from '../store/useSettingsStore';
-import { checkLatestVersion } from '../api/github';
-import type { GitHubRelease } from '../api/github';
 
 // ---------------------------------------------------------------------------
 // Shared styles
@@ -80,6 +78,17 @@ function SectionCard({ title, children }: { title: string; children: ReactNode }
 }
 
 // ---------------------------------------------------------------------------
+// Electron API helper
+// ---------------------------------------------------------------------------
+
+function getElectronAPI() {
+  return (window as any).electronAPI as {
+    selectFolder: () => Promise<string | null>;
+    isElectron: boolean;
+  } | undefined;
+}
+
+// ---------------------------------------------------------------------------
 // Settings page
 // ---------------------------------------------------------------------------
 
@@ -88,26 +97,65 @@ export default function Settings() {
   const [localApiKey, setLocalApiKey] = useState(store.deepseekApiKey);
   const [localDataDir, setLocalDataDir] = useState(store.dataDir);
   const [saved, setSaved] = useState(false);
-  const [versionInfo, setVersionInfo] = useState<GitHubRelease | null>(null);
-  const [checking, setChecking] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [foundTopics, setFoundTopics] = useState<string[]>([]);
+  const [scanError, setScanError] = useState('');
+
+  const electronAPI = getElectronAPI();
+  const isElectron = !!electronAPI?.isElectron;
+
+  // Fetch current data directory and topics on mount
+  useEffect(() => {
+    fetch('/api/config/data-dir')
+      .then(r => r.json())
+      .then(d => {
+        if (d.dataDir && d.dataDir !== localDataDir) {
+          setLocalDataDir(d.dataDir);
+        }
+      })
+      .catch(() => {});
+  }, []); // eslint-disable-line
 
   const handleSave = () => {
     store.setApiKey(localApiKey);
     store.setDataDir(localDataDir);
     store.saveSettings();
+
+    // Also persist to .env on server side
+    fetch('/api/config/data-dir', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dataDir: localDataDir }),
+    }).catch(() => {});
+
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const handleCheck = async () => {
-    setChecking(true);
+  const handleBrowse = async () => {
+    if (!electronAPI?.selectFolder) return;
+    const folder = await electronAPI.selectFolder();
+    if (folder) {
+      setLocalDataDir(folder);
+    }
+  };
+
+  const handleScanTopics = async () => {
+    setScanning(true);
+    setScanError('');
+    setFoundTopics([]);
     try {
-      const r = await checkLatestVersion();
-      setVersionInfo(r);
+      const resp = await fetch('/api/config/scan-topics');
+      const data = await resp.json();
+      if (data.topics && Array.isArray(data.topics)) {
+        setFoundTopics(data.topics);
+      } else {
+        setScanError('未找到主题文件夹');
+      }
     } catch {
-      setVersionInfo(null);
+      setScanError('扫描失败，请检查服务器是否运行');
     } finally {
-      setChecking(false);
+      setScanning(false);
     }
   };
 
@@ -137,12 +185,74 @@ export default function Settings() {
 
       {/* Data Directory */}
       <SectionCard title="数据目录">
-        <input
-          type="text"
-          value={localDataDir}
-          onChange={(e) => setLocalDataDir(e.currentTarget.value)}
-          style={inputStyle}
-        />
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          <input
+            type="text"
+            value={localDataDir}
+            onChange={(e) => setLocalDataDir(e.currentTarget.value)}
+            placeholder="例如: D:\Code\Learn-anything"
+            style={{ ...inputStyle, flex: 1 }}
+          />
+          {isElectron && (
+            <button onClick={handleBrowse} style={secondaryButtonStyle}>
+              浏览...
+            </button>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <button
+            onClick={handleScanTopics}
+            disabled={scanning}
+            style={secondaryButtonStyle}
+          >
+            {scanning ? '扫描中...' : '检测主题'}
+          </button>
+          {scanError && (
+            <span style={{ color: 'var(--color-accent-red)', fontSize: 'var(--font-size-sm)' }}>
+              {scanError}
+            </span>
+          )}
+        </div>
+        {foundTopics.length > 0 && (
+          <div
+            style={{
+              marginTop: 12,
+              padding: 12,
+              borderRadius: 'var(--radius-sm)',
+              background: 'var(--color-bg-page)',
+              border: '1px solid var(--color-border)',
+            }}
+          >
+            <div
+              style={{
+                fontSize: 'var(--font-size-sm)',
+                color: 'var(--color-text-secondary)',
+                marginBottom: 8,
+                fontFamily: 'var(--font-serif)',
+              }}
+            >
+              检测到 {foundTopics.length} 个主题：
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {foundTopics.map((topic) => (
+                <span
+                  key={topic}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: 'var(--radius-pill)',
+                    background: 'var(--color-bg-blue)',
+                    color: 'var(--color-accent-blue)',
+                    fontSize: 'var(--font-size-sm)',
+                    fontFamily: 'var(--font-mono)',
+                    border: '1px solid var(--color-border)',
+                  }}
+                >
+                  {topic}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </SectionCard>
 
       {/* Save Button */}
@@ -152,83 +262,15 @@ export default function Settings() {
         </button>
       </div>
 
-      {/* Version & Sync */}
+      {/* Version */}
       <SectionCard title="版本">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div
-            style={{
-              fontSize: 'var(--font-size-sm)',
-              color: 'var(--color-text-secondary)',
-            }}
-          >
-            当前版本: v0.1.0
-          </div>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <button
-              onClick={handleCheck}
-              disabled={checking}
-              style={secondaryButtonStyle}
-            >
-              {checking ? '检查中...' : '检查更新'}
-            </button>
-            <button
-              onClick={() =>
-                window.open('https://github.com/ChenChenyaqi/learn-anything', '_blank')
-              }
-              style={secondaryButtonStyle}
-            >
-              同步 GitHub
-            </button>
-          </div>
-          {versionInfo && (
-            <div
-              style={{
-                marginTop: 8,
-                padding: 12,
-                borderRadius: 'var(--radius-sm)',
-                background: 'var(--color-bg-page)',
-                border: '1px solid var(--color-border)',
-                fontSize: 'var(--font-size-sm)',
-                color: 'var(--color-text-secondary)',
-              }}
-            >
-              <div
-                style={{
-                  fontWeight: 600,
-                  color: 'var(--color-text-primary)',
-                  marginBottom: 4,
-                }}
-              >
-                {versionInfo.name} ({versionInfo.tag_name})
-              </div>
-              <div>
-                发布于:{' '}
-                {new Date(versionInfo.published_at).toLocaleDateString('zh-CN')}
-              </div>
-              <a
-                href={versionInfo.html_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  color: 'var(--color-accent-blue)',
-                  textDecoration: 'none',
-                  fontSize: 'var(--font-size-sm)',
-                }}
-              >
-                查看详情
-              </a>
-            </div>
-          )}
-          {checking === false && versionInfo === null && (
-            <div
-              style={{
-                fontSize: 'var(--font-size-sm)',
-                color: 'var(--color-text-tertiary)',
-              }}
-            >
-              点击"检查更新"获取最新版本信息
-            </div>
-          )}
+        <div
+          style={{
+            fontSize: 'var(--font-size-sm)',
+            color: 'var(--color-text-secondary)',
+          }}
+        >
+          当前版本: v0.2.0
         </div>
       </SectionCard>
     </div>
