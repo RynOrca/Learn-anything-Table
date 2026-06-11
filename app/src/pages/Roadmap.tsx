@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useLearningStore } from '../store/useLearningStore';
 import ProgressBar from '../components/ProgressBar';
 import StatusBadge from '../components/StatusBadge';
+import RoadmapEditor from '../components/RoadmapEditor';
 import * as filesApi from '../api/files';
 import * as deepseekApi from '../api/deepseek';
 import ReactMarkdown from 'react-markdown';
@@ -141,6 +142,8 @@ export default function Roadmap() {
   const [loadingPlan, setLoadingPlan] = useState(false);
   const [adjusting, setAdjusting] = useState(false);
   const [showFullPlan, setShowFullPlan] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editGenerating, setEditGenerating] = useState(false);
 
   const phaseFromUrl = searchParams.get('phase');
   const [expandedStage, setExpandedStage] = useState<number | null>(null);
@@ -201,6 +204,46 @@ export default function Roadmap() {
       setAdjusting(false);
     }
   };
+
+  // Edit mode handlers
+  const handleOpenEditor = () => {
+    if (!planContent) return;
+    setEditing(true);
+  };
+
+  const handleEditorSave = async (planMd: string) => {
+    if (!topicName) return;
+    await filesApi.updatePlan(topicName, planMd);
+    setPlanContent(planMd);
+    setPlanOverride(topicName, planMd);
+    setEditing(false);
+  };
+
+  const handleEditorRegenerate = async (): Promise<string> => {
+    setEditGenerating(true);
+    try {
+      const polished = await deepseekApi.polishPlan(planContent);
+      return polished;
+    } finally {
+      setEditGenerating(false);
+    }
+  };
+
+  // If editing, render RoadmapEditor
+  if (editing) {
+    return (
+      <RoadmapEditor
+        topicName={topicName ?? ''}
+        initialPlanMd={planContent}
+        generating={editGenerating}
+        mode="edit"
+        onConfirm={() => Promise.resolve()}
+        onSave={handleEditorSave}
+        onRegenerate={handleEditorRegenerate}
+        onBack={() => setEditing(false)}
+      />
+    );
+  }
 
   // Loading / Error / Empty states
   if (loading) {
@@ -271,24 +314,44 @@ export default function Roadmap() {
             {stageData.length} 个阶段 / {overallTotal} 个知识点 / 已掌握 {overallMastered}
           </p>
         </div>
-        <button
-          onClick={handleAdjust}
-          disabled={adjusting || !planContent}
-          style={{
-            padding: '8px 20px',
-            borderRadius: 'var(--radius-pill)',
-            border: '1px solid var(--color-accent-blue)',
-            background: adjusting ? 'var(--color-bg-blue)' : 'transparent',
-            color: 'var(--color-accent-blue)',
-            fontSize: 'var(--font-size-sm)',
-            fontFamily: 'var(--font-serif)',
-            cursor: adjusting ? 'not-allowed' : 'pointer',
-            opacity: adjusting ? 0.7 : 1,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {adjusting ? '调整中...' : 'AI 调整路线'}
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={handleOpenEditor}
+            disabled={!planContent}
+            style={{
+              padding: '8px 20px',
+              borderRadius: 'var(--radius-pill)',
+              border: '1px solid var(--color-border)',
+              background: 'transparent',
+              color: 'var(--color-text-secondary)',
+              fontSize: 'var(--font-size-sm)',
+              fontFamily: 'var(--font-serif)',
+              cursor: planContent ? 'pointer' : 'not-allowed',
+              opacity: planContent ? 1 : 0.5,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            编辑路线
+          </button>
+          <button
+            onClick={handleAdjust}
+            disabled={adjusting || !planContent}
+            style={{
+              padding: '8px 20px',
+              borderRadius: 'var(--radius-pill)',
+              border: '1px solid var(--color-accent-blue)',
+              background: adjusting ? 'var(--color-bg-blue)' : 'transparent',
+              color: 'var(--color-accent-blue)',
+              fontSize: 'var(--font-size-sm)',
+              fontFamily: 'var(--font-serif)',
+              cursor: adjusting ? 'not-allowed' : 'pointer',
+              opacity: adjusting ? 0.7 : 1,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {adjusting ? '调整中...' : 'AI 调整路线'}
+          </button>
+        </div>
       </div>
 
       {/* ================================================================ */}

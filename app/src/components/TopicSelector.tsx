@@ -439,6 +439,7 @@ export default function TopicSelector() {
       {/* Create dialog — step 2: editor */}
       {showCreate && createStep === 'editor' && (
         <RoadmapEditor
+          mode="create"
           topicName={newName.trim()}
           initialPlanMd={aiPlanMd}
           generating={aiGenerating}

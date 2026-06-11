@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
+import { planFromFile } from '../api/deepseek';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -21,9 +22,17 @@ interface RoadmapEditorProps {
   topicName: string;
   initialPlanMd: string;
   generating: boolean;
+  /** 'create' = new topic wizard, 'edit' = editing existing plan */
+  mode: 'create' | 'edit';
+  /** Create mode: finalize and create topic */
   onConfirm: (planMd: string, kmMd: string) => Promise<void>;
-  onSkip: () => void;
+  /** Create mode: skip AI, create empty */
+  onSkip?: () => void;
+  /** Edit mode: save plan to disk */
+  onSave?: (planMd: string) => Promise<void>;
+  /** Re-generate / polish with AI */
   onRegenerate: () => Promise<string>;
+  /** Back button handler */
   onBack: () => void;
 }
 
@@ -67,7 +76,6 @@ function parseMarkdownToStages(md: string): EditableStage[] {
   };
 
   for (const line of lines) {
-    // Stage header: ## 阶段一：名称  or  ## 阶段1：名称
     const stageMatch = line.match(/^##\s*阶段\s*[^\s：:]+[：:]\s*(.+)/);
     if (stageMatch) {
       flushStage();
@@ -82,14 +90,12 @@ function parseMarkdownToStages(md: string): EditableStage[] {
 
     if (!currentStage) continue;
 
-    // Stage goal: > 目标：xxx
     const goalMatch = line.match(/^>\s*目标[：:]\s*(.*)/);
     if (goalMatch && goalMatch[1].trim()) {
       currentStage.goal = goalMatch[1].trim();
       continue;
     }
 
-    // Concept header: ### N.M 名称  or  ### N.M. 名称
     const conceptMatch = line.match(/^###\s+\d+\.\d+\.?\s*(.+)/);
     if (conceptMatch) {
       flushConcept();
@@ -101,7 +107,6 @@ function parseMarkdownToStages(md: string): EditableStage[] {
       continue;
     }
 
-    // Concept description: - xxx
     if (currentConcept) {
       const descMatch = line.match(/^-\s*(.+)/);
       if (descMatch && descMatch[1].trim()) {
@@ -112,15 +117,12 @@ function parseMarkdownToStages(md: string): EditableStage[] {
 
   flushStage();
 
-  // Fallback: if parsing yielded nothing, create a minimal stage
   if (stages.length === 0) {
     stages.push({
       id: uid(),
       name: '基础入门',
       goal: '',
-      concepts: [
-        { id: uid(), name: '新概念', description: '' },
-      ],
+      concepts: [{ id: uid(), name: '新概念', description: '' }],
     });
   }
 
@@ -252,8 +254,10 @@ export default function RoadmapEditor({
   topicName,
   initialPlanMd,
   generating,
+  mode,
   onConfirm,
   onSkip,
+  onSave,
   onRegenerate,
   onBack,
 }: RoadmapEditorProps) {
@@ -262,6 +266,7 @@ export default function RoadmapEditor({
   );
   const [previewExpanded, setPreviewExpanded] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [parseWarning, setParseWarning] = useState(
     parseMarkdownToStages(initialPlanMd).length === 1 &&
@@ -269,6 +274,7 @@ export default function RoadmapEditor({
       ? 'AI 返回格式异常，已使用默认模板，请手动编辑'
       : '',
   );
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const totalConcepts = useMemo(
     () => stages.reduce((sum, s) => sum + s.concepts.length, 0),
@@ -285,12 +291,7 @@ export default function RoadmapEditor({
   const addStage = useCallback(() => {
     setStages((prev) => [
       ...prev,
-      {
-        id: uid(),
-        name: '',
-        goal: '',
-        concepts: [{ id: uid(), name: '', description: '' }],
-      },
+      { id: uid(), name: '', goal: '', concepts: [{ id: uid(), name: '', description: '' }] },
     ]);
   }, []);
 
@@ -323,9 +324,7 @@ export default function RoadmapEditor({
   const deleteConcept = useCallback((stageId: string, conceptId: string) => {
     setStages((prev) =>
       prev.map((s) =>
-        s.id === stageId
-          ? { ...s, concepts: s.concepts.filter((c) => c.id !== conceptId) }
-          : s,
+        s.id === stageId ? { ...s, concepts: s.concepts.filter((c) => c.id !== conceptId) } : s,
       ),
     );
   }, []);
@@ -335,12 +334,7 @@ export default function RoadmapEditor({
       setStages((prev) =>
         prev.map((s) =>
           s.id === stageId
-            ? {
-              ...s,
-              concepts: s.concepts.map((c) =>
-                c.id === conceptId ? { ...c, name } : c,
-              ),
-            }
+            ? { ...s, concepts: s.concepts.map((c) => (c.id === conceptId ? { ...c, name } : c)) }
             : s,
         ),
       );
@@ -353,12 +347,7 @@ export default function RoadmapEditor({
       setStages((prev) =>
         prev.map((s) =>
           s.id === stageId
-            ? {
-              ...s,
-              concepts: s.concepts.map((c) =>
-                c.id === conceptId ? { ...c, description } : c,
-              ),
-            }
+            ? { ...s, concepts: s.concepts.map((c) => (c.id === conceptId ? { ...c, description } : c)) }
             : s,
         ),
       );
@@ -376,17 +365,16 @@ export default function RoadmapEditor({
     try {
       const newMd = await onRegenerate();
       const parsed = parseMarkdownToStages(newMd);
-      if (parsed.length === 1 && parsed[0].name === '基础入门') {
+      if (parsed.length === 1 && parsed[0].name === '基础入门' && parsed[0].concepts[0]?.name === '新概念') {
         setParseWarning('AI 返回格式异常，已使用默认模板，请手动编辑');
       }
       setStages(parsed);
     } catch (e) {
-      setError(`重新生成失败：${(e as Error).message}`);
+      setError(`操作失败：${(e as Error).message}`);
     }
   };
 
   const handleConfirm = async () => {
-    // Validate
     const validStages = stages.filter(
       (s) => s.name.trim() && s.concepts.filter((c) => c.name.trim()).length > 0,
     );
@@ -396,6 +384,18 @@ export default function RoadmapEditor({
     }
     setError('');
     setSaving(true);
+
+    if (mode === 'edit' && onSave) {
+      try {
+        await onSave(planMd);
+      } catch (e) {
+        setError(`保存失败：${(e as Error).message}`);
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     try {
       await onConfirm(planMd, kmMd);
     } catch (e) {
@@ -405,7 +405,34 @@ export default function RoadmapEditor({
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError('');
+    setUploading(true);
+    try {
+      const text = await file.text();
+      if (!text.trim()) {
+        setError('文件内容为空');
+        return;
+      }
+      const md = await planFromFile(topicName, text);
+      const parsed = parseMarkdownToStages(md);
+      setStages(parsed);
+      setParseWarning('');
+    } catch (err) {
+      setError(`上传分析失败：${(err as Error).message}`);
+    } finally {
+      setUploading(false);
+      // Reset file input so the same file can be re-selected
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const canConfirm = totalConcepts > 0 && stages.some((s) => s.name.trim());
+
+  const isEdit = mode === 'edit';
+  const isBusy = generating || saving || uploading;
 
   // -------------------------------------------------------------------
   // Render
@@ -440,6 +467,15 @@ export default function RoadmapEditor({
 
   return (
     <div style={containerStyle}>
+      {/* Hidden file input for MD upload */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".md,.txt,.markdown"
+        onChange={handleFileUpload}
+        style={{ display: 'none' }}
+      />
+
       {/* Top bar */}
       <div style={topBarStyle}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -457,61 +493,80 @@ export default function RoadmapEditor({
             ← 返回
           </button>
           <span style={{ fontSize: 'var(--font-size-md)', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-            新建学习路线
+            {isEdit ? '编辑学习路线' : '新建学习路线'}
           </span>
           <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-tertiary)' }}>
             主题：{topicName}
           </span>
         </div>
-        <button
-          onClick={onSkip}
-          style={{
-            padding: '6px 16px',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--color-border)',
-            background: 'transparent',
-            color: 'var(--color-text-secondary)',
-            fontSize: 'var(--font-size-sm)',
-            fontFamily: 'var(--font-serif)',
-            cursor: 'pointer',
-          }}
-        >
-          跳过，直接创建空模板
-        </button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {/* Upload MD file button */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isBusy}
+            style={{
+              padding: '6px 14px',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--color-border)',
+              background: 'transparent',
+              color: isBusy ? 'var(--color-text-tertiary)' : 'var(--color-text-secondary)',
+              fontSize: 'var(--font-size-sm)',
+              fontFamily: 'var(--font-serif)',
+              cursor: isBusy ? 'not-allowed' : 'pointer',
+              opacity: isBusy ? 0.5 : 1,
+            }}
+          >
+            {uploading ? '分析中...' : '上传 MD 生成路线'}
+          </button>
+          {/* Skip button — only in create mode */}
+          {!isEdit && onSkip && (
+            <button
+              onClick={onSkip}
+              disabled={isBusy}
+              style={{
+                padding: '6px 16px',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--color-border)',
+                background: 'transparent',
+                color: 'var(--color-text-secondary)',
+                fontSize: 'var(--font-size-sm)',
+                fontFamily: 'var(--font-serif)',
+                cursor: isBusy ? 'not-allowed' : 'pointer',
+                opacity: isBusy ? 0.5 : 1,
+              }}
+            >
+              跳过，直接创建空模板
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Scrollable editor */}
       <div style={scrollStyle}>
-        {generating && (
+        {isBusy && (
           <div style={{
             textAlign: 'center',
             padding: '60px 20px',
             color: 'var(--color-text-secondary)',
             fontSize: 'var(--font-size-sm)',
           }}>
-            AI 正在生成学习路线...
+            {uploading ? 'AI 正在分析文件内容...' : generating ? 'AI 正在生成学习路线...' : '保存中...'}
           </div>
         )}
 
-        {!generating && parseWarning && (
+        {!isBusy && parseWarning && (
           <div style={warningBannerStyle}>{parseWarning}</div>
         )}
 
-        {!generating && error && (
+        {!isBusy && error && (
           <div style={errorBannerStyle}>{error}</div>
         )}
 
-        {!generating && (
+        {!isBusy && (
           <>
             {stages.map((stage, si) => (
               <div key={stage.id} style={stageCardStyle}>
-                {/* Stage header */}
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  marginBottom: 12,
-                }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                   <span style={{
                     fontSize: 'var(--font-size-md)',
                     fontWeight: 600,
@@ -524,12 +579,7 @@ export default function RoadmapEditor({
                     value={stage.name}
                     onChange={(e) => updateStageName(stage.id, e.target.value)}
                     placeholder="阶段名称"
-                    style={{
-                      ...inputBase,
-                      flex: 1,
-                      fontSize: 'var(--font-size-base)',
-                      fontWeight: 600,
-                    }}
+                    style={{ ...inputBase, flex: 1, fontSize: 'var(--font-size-base)', fontWeight: 600 }}
                   />
                   <button
                     onClick={() => deleteStage(stage.id)}
@@ -550,43 +600,24 @@ export default function RoadmapEditor({
                   </button>
                 </div>
 
-                {/* Stage goal */}
                 <div style={{ marginBottom: 14 }}>
                   <input
                     value={stage.goal}
                     onChange={(e) => updateStageGoal(stage.id, e.target.value)}
                     placeholder="阶段目标（可选）"
-                    style={{
-                      ...inputBase,
-                      width: '100%',
-                      color: 'var(--color-text-secondary)',
-                      fontSize: 'var(--font-size-sm)',
-                    }}
+                    style={{ ...inputBase, width: '100%', color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}
                   />
                 </div>
 
-                {/* Concepts */}
                 <div style={{ paddingLeft: 12 }}>
                   {stage.concepts.map((concept, ci) => (
-                    <div
-                      key={concept.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        gap: 8,
-                        marginBottom: 10,
-                      }}
-                    >
-                      <span style={conceptIndexStyle}>
-                        {si + 1}.{ci + 1}
-                      </span>
+                    <div key={concept.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10 }}>
+                      <span style={conceptIndexStyle}>{si + 1}.{ci + 1}</span>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
                           <input
                             value={concept.name}
-                            onChange={(e) =>
-                              updateConceptName(stage.id, concept.id, e.target.value)
-                            }
+                            onChange={(e) => updateConceptName(stage.id, concept.id, e.target.value)}
                             placeholder="概念名称"
                             style={{ ...inputBase, flex: 1 }}
                           />
@@ -610,22 +641,13 @@ export default function RoadmapEditor({
                         </div>
                         <input
                           value={concept.description}
-                          onChange={(e) =>
-                            updateConceptDesc(stage.id, concept.id, e.target.value)
-                          }
+                          onChange={(e) => updateConceptDesc(stage.id, concept.id, e.target.value)}
                           placeholder="简要说明（可选）"
-                          style={{
-                            ...inputBase,
-                            width: '100%',
-                            fontSize: 'var(--font-size-xs)',
-                            color: 'var(--color-text-secondary)',
-                          }}
+                          style={{ ...inputBase, width: '100%', fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)' }}
                         />
                       </div>
                     </div>
                   ))}
-
-                  {/* Add concept */}
                   <button
                     onClick={() => addConcept(stage.id)}
                     style={{
@@ -646,7 +668,6 @@ export default function RoadmapEditor({
               </div>
             ))}
 
-            {/* Add stage */}
             <button
               onClick={addStage}
               style={{
@@ -665,7 +686,7 @@ export default function RoadmapEditor({
               + 添加新阶段
             </button>
 
-            {/* Preview toggle */}
+            {/* Preview */}
             <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 16 }}>
               <button
                 onClick={() => setPreviewExpanded(!previewExpanded)}
@@ -692,7 +713,6 @@ export default function RoadmapEditor({
                 </span>
                 Markdown 预览（{stages.length} 个阶段，{totalConcepts} 个概念）
               </button>
-
               {previewExpanded && (
                 <div
                   className="markdown-content"
@@ -721,33 +741,30 @@ export default function RoadmapEditor({
 
       {/* Bottom bar */}
       <div style={bottomBarStyle}>
-        <span style={{
-          fontSize: 'var(--font-size-xs)',
-          color: 'var(--color-text-tertiary)',
-        }}>
+        <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>
           {stages.length} 阶段 / {totalConcepts} 概念
         </span>
         <div style={{ display: 'flex', gap: 10 }}>
           <button
             onClick={handleRegenerate}
-            disabled={generating}
+            disabled={isBusy}
             style={{
               padding: '8px 22px',
               borderRadius: 'var(--radius-sm)',
               border: '1px solid var(--color-border)',
               background: 'transparent',
-              color: generating ? 'var(--color-text-tertiary)' : 'var(--color-text-secondary)',
+              color: isBusy ? 'var(--color-text-tertiary)' : 'var(--color-text-secondary)',
               fontSize: 'var(--font-size-sm)',
               fontFamily: 'var(--font-serif)',
-              cursor: generating ? 'not-allowed' : 'pointer',
-              opacity: generating ? 0.5 : 1,
+              cursor: isBusy ? 'not-allowed' : 'pointer',
+              opacity: isBusy ? 0.5 : 1,
             }}
           >
-            {generating ? '生成中...' : '重新生成'}
+            {generating ? '生成中...' : isEdit ? 'AI 完善' : '重新生成'}
           </button>
           <button
             onClick={handleConfirm}
-            disabled={!canConfirm || saving || generating}
+            disabled={!canConfirm || isBusy}
             style={{
               padding: '8px 28px',
               borderRadius: 'var(--radius-sm)',
@@ -757,11 +774,11 @@ export default function RoadmapEditor({
               fontSize: 'var(--font-size-sm)',
               fontFamily: 'var(--font-serif)',
               fontWeight: 600,
-              cursor: canConfirm && !saving && !generating ? 'pointer' : 'not-allowed',
-              opacity: canConfirm && !saving && !generating ? 1 : 0.5,
+              cursor: canConfirm && !isBusy ? 'pointer' : 'not-allowed',
+              opacity: canConfirm && !isBusy ? 1 : 0.5,
             }}
           >
-            {saving ? '创建中...' : '确认创建'}
+            {saving ? '保存中...' : isEdit ? '保存路线' : '确认创建'}
           </button>
         </div>
       </div>

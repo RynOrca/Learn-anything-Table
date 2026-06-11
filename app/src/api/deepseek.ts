@@ -135,3 +135,11 @@ export async function polishPlan(currentPlan: string): Promise<string> {
   });
   return data.content;
 }
+
+export async function planFromFile(topicName: string, fileContent: string): Promise<string> {
+  const data = await postAI<{ content: string }>('/api/ai/plan-from-file', {
+    topicName,
+    fileContent,
+  });
+  return data.content;
+}

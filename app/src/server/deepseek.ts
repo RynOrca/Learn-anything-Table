@@ -487,3 +487,35 @@ ${currentPlan}
 
   return callDeepSeek(apiKey, messages, 4096);
 }
+
+const PLAN_FROM_FILE_SYSTEM = `你是学习路径设计专家。用户会上传一份 MD 文件内容，请你分析其中的知识点，为这些知识点设计一份系统化的学习计划。
+
+## 输出格式（严格遵守）
+与 GENERATE_PLAN_SYSTEM 相同：生成包含阶段、概念的学习计划 Markdown。
+
+## 规则
+- 从上传的文件内容中提取所有出现的知识点
+- 按学习顺序排列：基础 -> 进阶 -> 高级
+- 生成 3-6 个阶段，每个阶段 3-8 个概念
+- 概念名称 2-6 个字
+- 使用中文`;
+
+export async function planFromFile(
+  apiKey: string,
+  topicName: string,
+  fileContent: string,
+): Promise<string> {
+  const truncated = fileContent.length > 8000 ? fileContent.slice(0, 8000) + '\n\n...(内容已截断)' : fileContent;
+  const userMessage = `请根据以下文件内容，为主题 **${topicName}** 设计一份完整的学习计划：
+
+\`\`\`markdown
+${truncated}
+\`\`\``;
+
+  const messages: ChatMessage[] = [
+    { role: 'system', content: PLAN_FROM_FILE_SYSTEM },
+    { role: 'user', content: userMessage },
+  ];
+
+  return callDeepSeek(apiKey, messages, 4096, 0.7);
+}

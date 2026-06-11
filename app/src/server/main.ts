@@ -23,6 +23,7 @@ import {
   generateLearningPlan,
   adjustPlan,
   polishPlan,
+  planFromFile,
 } from './deepseek';
 import { executePython } from './execute';
 
@@ -557,6 +558,27 @@ export function learningApiPlugin(): Plugin {
               return;
             }
             const content = await polishPlan(apiKey, body.currentPlan);
+            return json(res, 200, { content });
+          }
+
+          // -----------------------------------------------------------------
+          // POST /api/ai/plan-from-file
+          // -----------------------------------------------------------------
+          if (method === 'POST' && pathname === '/api/ai/plan-from-file') {
+            const apiKey = getApiKey(req);
+            if (!apiKey) {
+              return json(res, 401, { error: 'Missing API key in Authorization header' });
+            }
+            const bodyRaw = await readBody(req);
+            let body: { topicName: string; fileContent: string };
+            try {
+              body = JSON.parse(bodyRaw);
+            } catch {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Invalid JSON' }));
+              return;
+            }
+            const content = await planFromFile(apiKey, body.topicName, body.fileContent);
             return json(res, 200, { content });
           }
 
