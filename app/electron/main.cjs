@@ -43,7 +43,7 @@ function startServer() {
     : path.dirname(app.getPath('exe'));
 
   process.env.LEARN_ANYTHING_DATA_DIR = dataDir;
-  process.env.API_PORT = process.env.API_PORT || '3456';
+  process.env.API_PORT = process.env.API_PORT || '17345';
 
   try {
     // tsx/cjs registers a require hook that transpiles TypeScript + ESM on the fly
@@ -80,7 +80,7 @@ function createWindow() {
   if (state.isMaximized) win.maximize();
 
   // Dev: load from Vite. Production: load from Express (in-process)
-  win.loadURL(isDev ? 'http://localhost:5173' : 'http://localhost:3456');
+  win.loadURL(isDev ? 'http://localhost:5173' : 'http://localhost:17345');
 
   win.once('ready-to-show', function() { win.show(); });
   win.webContents.setWindowOpenHandler(function(d) { shell.openExternal(d.url); return { action: 'deny' }; });

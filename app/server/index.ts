@@ -54,7 +54,7 @@ import { executePython } from './execute.js';
 // Constants
 // ---------------------------------------------------------------------------
 
-const PORT = parseInt(process.env.API_PORT || '3456', 10);
+const PORT = parseInt(process.env.API_PORT || '17345', 10);
 const distPath = path.resolve(__dirname, '..', 'dist');
 
 // ---------------------------------------------------------------------------

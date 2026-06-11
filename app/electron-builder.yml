@@ -28,4 +28,4 @@ nsis:
   createStartMenuShortcut: true
   shortcutName: Learn-Anything
 
-asar: true
+asar: false
