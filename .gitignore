@@ -8,3 +8,5 @@ app/src/server/*.d.ts
 app/vite.config.js
 app/vite.config.d.ts
 *.tsbuildinfo
+app/release/
+app/dist/

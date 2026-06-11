@@ -4,10 +4,15 @@ import { learningApiPlugin } from './src/server/main';
 
 export default defineConfig({
   plugins: [react(), learningApiPlugin()],
+  base: './',
   server: {
     port: 5173,
     fs: {
       allow: ['..']
     }
+  },
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
   }
 });
