@@ -1,16 +1,6 @@
 import { create } from 'zustand';
 import type { TopicState, DashboardStats, SessionMeta, SessionDetail, ConceptStatus } from '../types';
-
-// Stub API - will be replaced by actual api/files.ts in Task 4
-const filesApi = {
-  fetchState: async (_name: string) => { throw new Error('Not implemented'); },
-  fetchKnowledgeMap: async (_name: string) => { throw new Error('Not implemented'); },
-  fetchSessions: async (_name: string, _search?: string) => [] as SessionMeta[],
-  fetchSessionDetail: async (_name: string, _filename: string) => null as SessionDetail | null,
-  updateState: async (_name: string, _state: TopicState, _path: string, _status: ConceptStatus, _confidence: number) => {},
-  createSession: async (_name: string, _concept: string, _type: string, _content: string) => {},
-  computeStats: (_state: TopicState, _sessions: SessionMeta[]) => null as unknown as DashboardStats,
-};
+import * as filesApi from '../api/files';
 
 interface LearningState {
   topicName: string | null;

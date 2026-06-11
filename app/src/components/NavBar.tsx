@@ -1,0 +1,67 @@
+import { NavLink } from 'react-router-dom';
+import TopicSelector from './TopicSelector';
+
+const navItems = [
+  { to: '/', label: '概览' },
+  { to: '/map', label: '地图' },
+  { to: '/history', label: '历史' },
+  { to: '/chat', label: '对话' },
+  { to: '/practice', label: '练习' },
+  { to: '/roadmap', label: '路线' },
+  { to: '/settings', label: '设置' },
+];
+
+export default function NavBar() {
+  return (
+    <nav style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      height: 48,
+      padding: '0 20px',
+      borderBottom: '1px solid var(--color-border)',
+      background: 'var(--color-bg-card)',
+      flexShrink: 0,
+    }}>
+      <div style={{
+        fontSize: 'var(--font-size-md)',
+        fontWeight: 600,
+        color: 'var(--color-accent-blue)',
+        marginRight: 24,
+        whiteSpace: 'nowrap',
+        fontFamily: 'var(--font-mono)',
+      }}>
+        Learn-Anything
+      </div>
+      <div style={{
+        display: 'flex',
+        gap: 4,
+        flex: 1,
+        overflow: 'auto',
+      }}>
+        {navItems.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.to === '/'}
+            style={({ isActive }) => ({
+              padding: '8px 14px',
+              fontSize: 'var(--font-size-base)',
+              color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+              textDecoration: 'none',
+              borderBottom: isActive ? '2px solid var(--color-accent-blue)' : '2px solid transparent',
+              whiteSpace: 'nowrap',
+              transition: 'color 0.15s, border-color 0.15s',
+              fontFamily: 'var(--font-serif)',
+            })}
+          >
+            {item.label}
+          </NavLink>
+        ))}
+      </div>
+      <div style={{ marginLeft: 16 }}>
+        <TopicSelector />
+      </div>
+    </nav>
+  );
+}
