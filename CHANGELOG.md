@@ -18,6 +18,9 @@
   - `app/server/files.ts`: 导出 `getDataRoot()` 和 `invalidateTopicCache()` 函数
 
 ---
+> commit: `fc9f8fb` (server) + `cf21100` (changelog)
+
+---
 > commit: `fc11c7f`
 
 - 创建 Python 体系化学习计划 (`python-learning-plan.md`)
