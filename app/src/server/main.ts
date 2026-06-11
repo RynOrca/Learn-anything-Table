@@ -12,7 +12,7 @@ import {
   createTopic,
   deleteTopic,
   updatePlan,
-} from './files';
+} from '../../server/files';
 import {
   explain,
   chat,
@@ -24,8 +24,8 @@ import {
   adjustPlan,
   polishPlan,
   planFromFile,
-} from './deepseek';
-import { executePython } from './execute';
+} from '../../server/deepseek';
+import { executePython } from '../../server/execute';
 
 // ---------------------------------------------------------------------------
 // Helper: extract API key from Authorization header
