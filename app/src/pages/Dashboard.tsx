@@ -32,7 +32,7 @@ const centerStyle: React.CSSProperties = {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { topicName, stats, loading, error } = useLearningStore();
+  const { stats, loading, error } = useLearningStore();
 
   // --- loading state ---
   if (loading) {
@@ -221,7 +221,7 @@ export default function Dashboard() {
 
               return (
                 <div
-                  key={i}
+                  key={rec.conceptName}
                   role="button"
                   tabIndex={0}
                   style={{
@@ -234,13 +234,11 @@ export default function Dashboard() {
                     transition: 'border-color 0.15s, background 0.15s',
                   }}
                   onClick={() => navigate(targetPath)}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLDivElement).style.borderColor =
-                      'var(--color-border-hover)';
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLDivElement).style.borderColor =
-                      'var(--color-border)';
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      navigate(targetPath);
+                    }
                   }}
                 >
                   <div
