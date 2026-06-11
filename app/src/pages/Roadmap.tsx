@@ -132,7 +132,7 @@ function matchStagesToConcepts(stages: PlanStage[], stateConcepts: Concept[]): S
 export default function Roadmap() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { state, sessions, topicName, loading, error, planOverrides, setPlanOverride } = useLearningStore();
+  const { state, sessions, topicName, loading, error, planOverrides, setPlanOverride, loadTopic } = useLearningStore();
 
   const hasSessions = (conceptName: string): boolean => {
     return sessions.some((s) => s.conceptName === conceptName);
@@ -214,6 +214,8 @@ export default function Roadmap() {
   const handleEditorSave = async (planMd: string) => {
     if (!topicName) return;
     await filesApi.updatePlan(topicName, planMd);
+    // 重新加载主题状态以刷新 concepts 列表（updatePlan 在服务端更新了 state.yaml）
+    await loadTopic(topicName);
     setPlanContent(planMd);
     setPlanOverride(topicName, planMd);
     setEditing(false);

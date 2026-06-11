@@ -15,6 +15,7 @@ async function callDeepSeek(
   messages: ChatMessage[],
   maxTokens = 4096,
   temperature = 0.7,
+  timeoutMs = 30000,
 ): Promise<string> {
   const response = await fetch(DEEPSEEK_URL, {
     method: 'POST',
@@ -28,7 +29,7 @@ async function callDeepSeek(
       max_tokens: maxTokens,
       temperature,
     }),
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 
   if (!response.ok) {
@@ -440,7 +441,7 @@ export async function generateLearningPlan(
     { role: 'user', content: userMessage },
   ];
 
-  return callDeepSeek(apiKey, messages, 4096, 0.8);
+  return callDeepSeek(apiKey, messages, 4096, 0.8, 60000);
 }
 
 export async function adjustPlan(
@@ -485,20 +486,52 @@ ${currentPlan}
     { role: 'user', content: userMessage },
   ];
 
-  return callDeepSeek(apiKey, messages, 4096);
+  return callDeepSeek(apiKey, messages, 4096, 0.7, 60000);
 }
 
 const PLAN_FROM_FILE_SYSTEM = `你是学习路径设计专家。用户会上传一份 MD 文件内容，请你分析其中的知识点，为这些知识点设计一份系统化的学习计划。
 
 ## 输出格式（严格遵守）
-与 GENERATE_PLAN_SYSTEM 相同：生成包含阶段、概念的学习计划 Markdown。
+只输出以下格式的 Markdown 内容，不要输出任何额外的解释或前言：
+
+\`\`\`markdown
+# {主题名} 学习计划
+
+> **创建日期**: YYYY-MM-DD
+> **起点**: {描述初学者的前置知识，默认"零基础"}
+> **目标**: {描述学完后能达到的水平}
+
+---
+
+## 阶段一：阶段名称
+> 目标：此阶段学习目标的一句话说明
+
+### 1.1 概念名称
+- 概念简要说明（一句话）
+
+### 1.2 概念名称
+- 概念简要说明（一句话）
+
+---
+
+## 阶段二：阶段名称
+> 目标：此阶段学习目标的一句话说明
+
+### 2.1 概念名称
+- 概念简要说明（一句话）
+\`\`\`
 
 ## 规则
 - 从上传的文件内容中提取所有出现的知识点
 - 按学习顺序排列：基础 -> 进阶 -> 高级
 - 生成 3-6 个阶段，每个阶段 3-8 个概念
-- 概念名称 2-6 个字
-- 使用中文`;
+- 每个概念后紧跟一条"-"开头的简要说明
+- 概念名称 2-6 个字，不要带编号（编号由系统自动添加）
+- 起点默认描述为"零基础"，但可根据主题调整
+- 目标描述应具体可衡量
+- 使用中文
+- 阶段使用"## 阶段N：名称"格式，N为中文数字（一、二、三...）
+- 概念使用"### N.M 概念名称"格式`;
 
 export async function planFromFile(
   apiKey: string,
@@ -517,5 +550,5 @@ ${truncated}
     { role: 'user', content: userMessage },
   ];
 
-  return callDeepSeek(apiKey, messages, 4096, 0.7);
+  return callDeepSeek(apiKey, messages, 4096, 0.7, 60000);
 }
