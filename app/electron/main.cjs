@@ -1,12 +1,11 @@
 // Electron main process
 const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 
 const isDev = !app.isPackaged;
-let serverProcess = null;
 let mainWindow = null;
+let serverStarted = false;
 
 // ── Window state persistence ──────────────────────────────────────
 
@@ -33,40 +32,29 @@ function saveWindowState() {
   } catch {}
 }
 
-// ── Express server ────────────────────────────────────────────────
+// ── Express server (in-process, production only) ──────────────────
 
 function startServer() {
-  return new Promise(function(resolve, reject) {
-    var serverPath = path.join(__dirname, '..', 'server', 'index.ts');
-    var dataDir = isDev
-      ? path.resolve(__dirname, '..', '..')
-      : path.dirname(app.getPath('exe'));
+  if (serverStarted) return;
 
-    serverProcess = spawn('npx', ['tsx', serverPath], {
-      cwd: path.join(__dirname, '..'),
-      env: Object.assign({}, process.env, {
-        LEARN_ANYTHING_DATA_DIR: dataDir,
-        API_PORT: '3456',
-      }),
-      stdio: ['ignore', 'pipe', 'pipe'],
-      shell: true,
-    });
+  // Set data directory: in production, use the folder containing the exe
+  var dataDir = isDev
+    ? path.resolve(__dirname, '..', '..')
+    : path.dirname(app.getPath('exe'));
 
-    var started = false;
-    serverProcess.stdout.on('data', function(d) {
-      var m = d.toString();
-      console.log('[server]', m.trim());
-      if (!started && m.indexOf('localhost:3456') !== -1) { started = true; resolve(); }
-    });
-    serverProcess.stderr.on('data', function(d) { console.error('[server:err]', d.toString().trim()); });
-    serverProcess.on('error', reject);
-    serverProcess.on('exit', function(c) { console.log('[server] exited', c); serverProcess = null; });
-    setTimeout(function() { if (!started) { started = true; resolve(); } }, 5000);
-  });
-}
+  process.env.LEARN_ANYTHING_DATA_DIR = dataDir;
+  process.env.API_PORT = process.env.API_PORT || '3456';
 
-function stopServer() {
-  if (serverProcess) { serverProcess.kill(); serverProcess = null; }
+  try {
+    // tsx/cjs registers a require hook that transpiles TypeScript + ESM on the fly
+    require('tsx/cjs');
+    // Now we can require TypeScript files directly
+    require('../server/index.ts');
+    serverStarted = true;
+    console.log('[server] Express started in-process on port ' + process.env.API_PORT);
+  } catch (err) {
+    console.error('[server] Failed to start Express in-process:', err.message);
+  }
 }
 
 // ── Window ────────────────────────────────────────────────────────
@@ -91,7 +79,9 @@ function createWindow() {
   mainWindow = win;
   if (state.isMaximized) win.maximize();
 
+  // Dev: load from Vite. Production: load from Express (in-process)
   win.loadURL(isDev ? 'http://localhost:5173' : 'http://localhost:3456');
+
   win.once('ready-to-show', function() { win.show(); });
   win.webContents.setWindowOpenHandler(function(d) { shell.openExternal(d.url); return { action: 'deny' }; });
   win.on('maximize', function() { win.webContents.send('window:maximize-change', true); });
@@ -100,6 +90,11 @@ function createWindow() {
   win.on('move', saveWindowState);
   win.on('close', saveWindowState);
   win.on('closed', function() { mainWindow = null; });
+
+  // Open devtools in dev mode for debugging
+  if (isDev) {
+    win.webContents.openDevTools({ mode: 'detach' });
+  }
 }
 
 // ── IPC ───────────────────────────────────────────────────────────
@@ -122,14 +117,21 @@ function setupIPC() {
 
 // ── Lifecycle ─────────────────────────────────────────────────────
 
-app.whenReady().then(async function() {
+app.whenReady().then(function() {
   setupIPC();
+
   if (!isDev) {
-    try { await startServer(); } catch(e) { console.error('Failed to start server:', e); }
+    // Production: start Express in-process before creating window
+    startServer();
   }
+
   createWindow();
-  app.on('activate', function() { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+
+  app.on('activate', function() {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
 });
 
-app.on('window-all-closed', function() { stopServer(); app.quit(); });
-app.on('before-quit', function() { stopServer(); });
+app.on('window-all-closed', function() {
+  app.quit();
+});
