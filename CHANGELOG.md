@@ -8,6 +8,16 @@
 - 创建任务规划文件 (`task_plan.md` / `findings.md` / `progress.md`)
 - 计划覆盖 6 大阶段、52 个知识点：基础语法与数据结构 → 函数与面向对象 → 内置函数与标准库 → 工程化开发 → 常用库 + GUI → 深度学习
 - 将所有 Python 相关文件整理到 `Python/` 目录下
+- 搭建 Vite + React + TypeScript 项目脚手架 (`app/`)
+  - 配置 package.json (React 18, React Router, Zustand, CodeMirror, react-markdown 等)
+  - 配置 TypeScript、Vite
+  - 创建暗色学术主题 CSS 变量系统 (globals.css)
+  - 字体: Noto Serif SC (思源宋体)
+  - index.html / main.tsx / App.tsx 入口
+  - .env.example 环境变量模板
+
+---
+> commit: `d33c30a`
 
 ---
 > commit: `c36aa0e`
