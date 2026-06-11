@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
+  <rect width="256" height="256" rx="48" fill="#0f1117"/>
+
+  <!-- Outer hexagon -->
+  <polygon points="128,24 224,72 224,148 128,196 32,148 32,72"
+           fill="none" stroke="#58a6ff" stroke-width="4" opacity="0.3"/>
+
+  <!-- Middle hexagon -->
+  <polygon points="128,52 196,86 196,140 128,174 60,140 60,86"
+           fill="none" stroke="#58a6ff" stroke-width="4" opacity="0.6"/>
+
+  <!-- Inner hexagon -->
+  <polygon points="128,80 168,100 168,132 128,152 88,132 88,100"
+           fill="none" stroke="#58a6ff" stroke-width="4"/>
+
+  <!-- Center node -->
+  <circle cx="128" cy="116" r="12" fill="#58a6ff"/>
+
+  <!-- Connecting lines from center to vertices -->
+  <line x1="128" y1="104" x2="128" y2="52" stroke="#58a6ff" stroke-width="2" opacity="0.6"/>
+  <line x1="140" y1="116" x2="196" y2="86" stroke="#58a6ff" stroke-width="2" opacity="0.6"/>
+  <line x1="140" y1="116" x2="168" y2="100" stroke="#58a6ff" stroke-width="2" opacity="0.8"/>
+  <line x1="116" y1="116" x2="60" y2="86" stroke="#58a6ff" stroke-width="2" opacity="0.6"/>
+  <line x1="116" y1="116" x2="88" y2="100" stroke="#58a6ff" stroke-width="2" opacity="0.8"/>
+
+  <!-- Vertex nodes -->
+  <circle cx="128" cy="52" r="5" fill="#58a6ff" opacity="0.6"/>
+  <circle cx="196" cy="86" r="5" fill="#58a6ff" opacity="0.6"/>
+  <circle cx="168" cy="100" r="4" fill="#58a6ff" opacity="0.8"/>
+  <circle cx="60" cy="86" r="5" fill="#58a6ff" opacity="0.6"/>
+  <circle cx="88" cy="100" r="4" fill="#58a6ff" opacity="0.8"/>
+</svg>

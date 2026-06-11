@@ -11,17 +11,22 @@ const navItems = [
 ];
 
 export default function NavBar() {
+  const isElectron = typeof (window as any).electronAPI?.isElectron !== 'undefined';
+
   return (
-    <nav style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      height: 64,
-      padding: '0 32px',
-      borderBottom: '1px solid var(--color-border)',
-      background: 'var(--color-bg-card)',
-      flexShrink: 0,
-    }}>
+    <nav
+      className="electron-titlebar"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        height: 64,
+        padding: '0 32px',
+        borderBottom: '1px solid var(--color-border)',
+        background: 'var(--color-bg-card)',
+        flexShrink: 0,
+      }}
+    >
       <div style={{
         fontSize: 'var(--font-size-md)',
         fontWeight: 600,
@@ -61,6 +66,28 @@ export default function NavBar() {
       <div style={{ marginLeft: 16 }}>
         <TopicSelector />
       </div>
+      {isElectron && (
+        <div className="window-controls">
+          <button
+            className="window-dot window-dot--minimize"
+            onClick={() => (window as any).electronAPI?.minimize()}
+            title="最小化"
+            aria-label="最小化"
+          />
+          <button
+            className="window-dot window-dot--maximize"
+            onClick={() => (window as any).electronAPI?.maximize()}
+            title="最大化"
+            aria-label="最大化"
+          />
+          <button
+            className="window-dot window-dot--close"
+            onClick={() => (window as any).electronAPI?.close()}
+            title="关闭"
+            aria-label="关闭"
+          />
+        </div>
+      )}
     </nav>
   );
 }

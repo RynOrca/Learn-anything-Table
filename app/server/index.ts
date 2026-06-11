@@ -578,13 +578,53 @@ app.post('/api/config/data-dir', (req, res) => {
       lines.pop();
     }
     fs.writeFileSync(envPath, lines.join('\n') + '\n', 'utf-8');
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Failed to write .env';
-    console.error('[api] Failed to write .env:', message);
-    // Still return success — the env var is set for this session
+  } catch (err) {
+    console.error('[config] Failed to write .env:', err);
+    res.status(500).json({ success: false, error: 'Failed to persist data directory setting' });
+    return;
   }
 
   res.json({ success: true, dataDir: normalized });
+});
+
+// POST /api/save-env — write/update key in .env file
+app.post('/api/save-env', (req, res) => {
+  const { key, value } = req.body;
+  if (!key || typeof key !== 'string' || value === undefined || typeof value !== 'string') {
+    res.status(400).json({ error: 'key and value (strings) are required' });
+    return;
+  }
+
+  const envPath = path.resolve(__dirname, '..', '.env');
+
+  try {
+    let content = '';
+    if (fs.existsSync(envPath)) {
+      content = fs.readFileSync(envPath, 'utf-8');
+    }
+
+    // Update or append the key
+    const lines = content.split('\n');
+    let found = false;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].trimStart().startsWith(key + '=')) {
+        lines[i] = key + '=' + value;
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      // Remove trailing empty line before appending
+      if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+      lines.push(key + '=' + value);
+    }
+
+    fs.writeFileSync(envPath, lines.join('\n'), 'utf-8');
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[save-env] Failed to write .env:', err);
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to write .env' });
+  }
 });
 
 // GET /api/config/scan-topics — scan data root for potential topic directories
