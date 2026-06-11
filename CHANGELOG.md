@@ -10,6 +10,13 @@
   - 复制 server 文件到 `app/server/` (files.ts, deepseek.ts, execute.ts)
   - `app/server/files.ts`: DATA_ROOT 改为 `getDataRoot()` 函数，支持 `LEARN_ANYTHING_DATA_DIR` 环境变量配置
 
+- Task 2: 独立 Express API 服务器 (`app/server/index.ts`)
+  - 完整移植了 Vite 插件 (src/server/main.ts) 的全部 23 个 API 路由
+  - 新增 4 个端点: POST /api/validate-key, GET/POST /api/config/data-dir, GET /api/config/scan-topics
+  - Express 5 独立运行于端口 3456 (可通过 API_PORT 环境变量配置)
+  - 内置 CORS、JSON 解析、静态文件服务、SPA fallback
+  - `app/server/files.ts`: 导出 `getDataRoot()` 和 `invalidateTopicCache()` 函数
+
 ---
 > commit: `fc11c7f`
 
