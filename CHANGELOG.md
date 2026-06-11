@@ -62,6 +62,18 @@
 ---
 > commit: `01962c1`
 
+- 添加在线练习页面 Practice (Task 9)
+  - 创建 `components/CodeEditor.tsx`: Python 代码编辑器组件 (monospace textarea)
+  - 重写 `pages/Practice.tsx`: 完整练习页面，含概念选择、AI 出题、代码编辑、运行测试、AI 审阅、提交保存
+  - AI 响应解析: `parseExercise()` 从 Markdown 提取练习目标/任务描述/验收要求/提示/起始代码
+  - AI 审阅解析: `parseReview()` 从 Markdown 提取肯定/改进建议/边界情况/代码质量建议/综合评价
+  - 难度映射: 根据信心值 (confidence) 自动选择 beginner/intermediate/challenge
+  - 状态管理: 练习完成后根据审阅结果自动更新概念状态和信心值
+  - 暗色学术主题: 900px 居中布局，全部使用 CSS 变量样式
+
+---
+> commit: `603df15`
+
 ---
 > commit: `c36aa0e`
 
