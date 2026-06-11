@@ -17,6 +17,14 @@
   - 内置 CORS、JSON 解析、静态文件服务、SPA fallback
   - `app/server/files.ts`: 导出 `getDataRoot()` 和 `invalidateTopicCache()` 函数
 
+- Task 3: Electron 主进程 (`app/electron/`) (c94d6dd)
+  - `app/electron/main.cjs`: Electron 主进程入口，无边框窗口 + 窗口状态持久化
+  - `app/electron/preload.cjs`: 安全的 contextBridge API，暴露窗口控制和目录选择
+  - IPC 通道: window:minimize, window:maximize, window:close, dialog:selectFolder
+  - 生产模式自动启动 Express 服务器 (端口 3456)
+  - 开发模式加载 Vite dev server (端口 5173)
+  - `app/package.json`: 添加 `"main": "electron/main.cjs"` 字段
+
 ---
 > commit: `fc9f8fb` (server) + `cf21100` (changelog)
 
