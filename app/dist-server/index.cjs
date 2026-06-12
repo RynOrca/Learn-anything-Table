@@ -1218,6 +1218,20 @@ app.post("/api/config/data-dir", (req, res) => {
   }
   process.env.LEARN_ANYTHING_DATA_DIR = normalized;
   invalidateTopicCache();
+  const configDir = process.env.LEARN_ANYTHING_CONFIG_DIR;
+  if (configDir) {
+    try {
+      const configPath = import_node_path3.default.join(configDir, "config.json");
+      let cfg = {};
+      if (import_node_fs3.default.existsSync(configPath)) {
+        cfg = JSON.parse(import_node_fs3.default.readFileSync(configPath, "utf-8"));
+      }
+      cfg["dataDir"] = normalized;
+      import_node_fs3.default.writeFileSync(configPath, JSON.stringify(cfg, null, 2), "utf-8");
+    } catch (err) {
+      console.error("[config] Failed to write config.json:", err);
+    }
+  }
   const envPath = import_node_path3.default.resolve(__dirname, "..", ".env");
   try {
     let envContent = "";
@@ -1247,8 +1261,6 @@ app.post("/api/config/data-dir", (req, res) => {
     import_node_fs3.default.writeFileSync(envPath, lines.join("\n") + "\n", "utf-8");
   } catch (err) {
     console.error("[config] Failed to write .env:", err);
-    res.status(500).json({ success: false, error: "Failed to persist data directory setting" });
-    return;
   }
   res.json({ success: true, dataDir: normalized });
 });

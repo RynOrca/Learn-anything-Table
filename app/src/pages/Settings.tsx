@@ -85,6 +85,8 @@ function getElectronAPI() {
   return (window as any).electronAPI as {
     selectFolder: () => Promise<string | null>;
     isElectron: boolean;
+    getDataDir: () => Promise<string>;
+    setDataDir: (dir: string) => Promise<boolean>;
   } | undefined;
 }
 
@@ -100,6 +102,7 @@ export default function Settings() {
   const [scanning, setScanning] = useState(false);
   const [foundTopics, setFoundTopics] = useState<string[]>([]);
   const [scanError, setScanError] = useState('');
+  const [importing, setImporting] = useState(false);
 
   const electronAPI = getElectronAPI();
   const isElectron = !!electronAPI?.isElectron;
@@ -127,6 +130,14 @@ export default function Settings() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ dataDir: localDataDir }),
     }).catch(() => {});
+
+    // In Electron: persist to userData/config.json
+    if (electronAPI?.setDataDir) {
+      electronAPI.setDataDir(localDataDir).catch(() => {});
+    }
+
+    // Notify other components that dataDir changed
+    window.dispatchEvent(new CustomEvent('datadir-changed', { detail: localDataDir }));
 
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -225,13 +236,57 @@ export default function Settings() {
           >
             <div
               style={{
-                fontSize: 'var(--font-size-sm)',
-                color: 'var(--color-text-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
                 marginBottom: 8,
-                fontFamily: 'var(--font-serif)',
               }}
             >
-              检测到 {foundTopics.length} 个主题：
+              <span
+                style={{
+                  fontSize: 'var(--font-size-sm)',
+                  color: 'var(--color-text-secondary)',
+                  fontFamily: 'var(--font-serif)',
+                }}
+              >
+                检测到 {foundTopics.length} 个主题：
+              </span>
+              <button
+                onClick={async () => {
+                  setImporting(true);
+                  try {
+                    // Save dataDir to server + Electron config
+                    await fetch('/api/config/data-dir', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ dataDir: localDataDir }),
+                    });
+                    if (electronAPI?.setDataDir) {
+                      await electronAPI.setDataDir(localDataDir);
+                    }
+                    store.setDataDir(localDataDir);
+                    store.saveSettings();
+                    window.dispatchEvent(new CustomEvent('datadir-changed', { detail: localDataDir }));
+                    setSaved(true);
+                    setTimeout(() => setSaved(false), 2000);
+                  } catch { /* ignore */ }
+                  setImporting(false);
+                }}
+                disabled={importing}
+                style={{
+                  padding: '3px 12px',
+                  borderRadius: 'var(--radius-pill)',
+                  border: '1px solid var(--color-accent-green)',
+                  background: 'var(--color-bg-green)',
+                  color: 'var(--color-accent-green)',
+                  fontSize: 'var(--font-size-xs)',
+                  fontFamily: 'var(--font-serif)',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {importing ? '导入中...' : '使用此目录'}
+              </button>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {foundTopics.map((topic) => (

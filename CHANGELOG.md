@@ -4,6 +4,17 @@
 
 ### Fixed
 
+- **数据目录持久化**: 修复每次打开 exe 都需要重新设置数据目录路径的问题
+  - `electron/main.cjs`: 数据目录配置保存到 `userData/config.json`，启动时自动读取
+  - `electron/preload.cjs`: 新增 `getDataDir`/`setDataDir` IPC 接口
+  - `app/server/index.ts`: POST `/api/config/data-dir` 持久化到 `userData/config.json`
+  - 窗口状态保存添加 500ms 防抖，避免频繁写入
+- **主题导入**: 设置页检测到主题后，添加"使用此目录"按钮，一键切换数据目录
+- **TopicSelector 自动刷新**: 监听 `dataDir` 变化和 `datadir-changed` 自定义事件，自动刷新主题列表
+- **窗口控制按钮样式**: 三个圆形按钮（绿/黄/红）常驻显示颜色，不再需要 hover；位置右移
+
+### Fixed
+
 - Task 10: 集成测试与最终修复
   - 修复 `tsc` 构建失败: `tsconfig.json` 添加 `"exclude": ["src/server"]` 解决 TS6305 声明文件冲突（src/server 同时被主项目和 tsconfig.node.json composite 项目包含）
   - 验证 Express 服务器: 所有 CRUD 端点正常（GET/POST/DELETE topics, state, sessions, plan, knowledge-map, config/data-dir, config/scan-topics）

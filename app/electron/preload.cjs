@@ -21,4 +21,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   selectFolder: function() {
     return ipcRenderer.invoke('dialog:selectFolder');
   },
+
+  // Config persistence (saved to userData/config.json)
+  getDataDir: function() {
+    return ipcRenderer.invoke('config:getDataDir');
+  },
+  setDataDir: function(dataDir) {
+    return ipcRenderer.invoke('config:setDataDir', dataDir);
+  },
 });

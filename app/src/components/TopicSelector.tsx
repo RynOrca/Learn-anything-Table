@@ -23,6 +23,7 @@ export default function TopicSelector() {
   const loadTopic = useLearningStore((s) => s.loadTopic);
   const deleteTopicStore = useLearningStore((s) => s.deleteTopic);
   const deepseekApiKey = useSettingsStore((s) => s.deepseekApiKey);
+  const dataDir = useSettingsStore((s) => s.dataDir);
   const [deletingTopic, setDeletingTopic] = useState<string | null>(null);
   const [confirmDeleteTopic, setConfirmDeleteTopic] = useState<string | null>(null);
 
@@ -42,6 +43,13 @@ export default function TopicSelector() {
 
   useEffect(() => {
     refreshTopics();
+  }, [dataDir]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Listen for custom event dispatched from Settings page
+  useEffect(() => {
+    const handler = () => refreshTopics();
+    window.addEventListener('datadir-changed', handler);
+    return () => window.removeEventListener('datadir-changed', handler);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close dropdown on outside click

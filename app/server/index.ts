@@ -552,7 +552,23 @@ app.post('/api/config/data-dir', (req, res) => {
   // Invalidate topic cache so next request picks up the new data root
   invalidateTopicCache();
 
-  // Persist to .env file
+  // Persist to userData/config.json if running inside Electron (production)
+  const configDir = process.env.LEARN_ANYTHING_CONFIG_DIR;
+  if (configDir) {
+    try {
+      const configPath = path.join(configDir, 'config.json');
+      let cfg: Record<string, unknown> = {};
+      if (fs.existsSync(configPath)) {
+        cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      }
+      cfg['dataDir'] = normalized;
+      fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2), 'utf-8');
+    } catch (err) {
+      console.error('[config] Failed to write config.json:', err);
+    }
+  }
+
+  // Also try to persist to .env file (for dev mode)
   const envPath = path.resolve(__dirname, '..', '.env');
   try {
     let envContent = '';
@@ -582,9 +598,8 @@ app.post('/api/config/data-dir', (req, res) => {
     }
     fs.writeFileSync(envPath, lines.join('\n') + '\n', 'utf-8');
   } catch (err) {
+    // Non-fatal in production — config.json is the primary persistence
     console.error('[config] Failed to write .env:', err);
-    res.status(500).json({ success: false, error: 'Failed to persist data directory setting' });
-    return;
   }
 
   res.json({ success: true, dataDir: normalized });

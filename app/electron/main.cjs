@@ -7,6 +7,29 @@ const isDev = !app.isPackaged;
 let mainWindow = null;
 let serverStarted = false;
 
+// ── Config persistence (userData/config.json) ─────────────────────
+
+function getConfigPath() {
+  return path.join(app.getPath('userData'), 'config.json');
+}
+
+function loadConfig() {
+  try {
+    const p = getConfigPath();
+    if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf-8'));
+  } catch {}
+  return {};
+}
+
+function saveConfig(key, value) {
+  try {
+    const p = getConfigPath();
+    const cfg = loadConfig();
+    cfg[key] = value;
+    fs.writeFileSync(p, JSON.stringify(cfg, null, 2), 'utf-8');
+  } catch {}
+}
+
 // ── Window state persistence ──────────────────────────────────────
 
 function getWindowStatePath() {
@@ -21,15 +44,20 @@ function loadWindowState() {
   return { width: 1280, height: 860 };
 }
 
+// Debounced save to avoid excessive writes during move/resize
+let saveTimer = null;
 function saveWindowState() {
   if (!mainWindow) return;
-  try {
-    const b = mainWindow.getBounds();
-    fs.writeFileSync(getWindowStatePath(), JSON.stringify({
-      width: b.width, height: b.height, x: b.x, y: b.y,
-      isMaximized: mainWindow.isMaximized(),
-    }, null, 2), 'utf-8');
-  } catch {}
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(function() {
+    try {
+      const b = mainWindow.getBounds();
+      fs.writeFileSync(getWindowStatePath(), JSON.stringify({
+        width: b.width, height: b.height, x: b.x, y: b.y,
+        isMaximized: mainWindow.isMaximized(),
+      }, null, 2), 'utf-8');
+    } catch {}
+  }, 500);
 }
 
 // ── Express server (in-process, production only) ──────────────────
@@ -37,11 +65,19 @@ function saveWindowState() {
 function startServer() {
   if (serverStarted) return;
 
-  // Set data directory: in production, use the folder containing the exe
-  var dataDir = isDev
-    ? path.resolve(__dirname, '..', '..')
-    : path.dirname(app.getPath('exe'));
+  // Set data directory: load from saved config, fallback to default
+  var cfg = loadConfig();
+  var dataDir;
+  if (cfg.dataDir) {
+    dataDir = cfg.dataDir;
+  } else if (isDev) {
+    dataDir = path.resolve(__dirname, '..', '..');
+  } else {
+    dataDir = path.dirname(app.getPath('exe'));
+  }
 
+  // Pass userData path to Express so it can persist config
+  process.env.LEARN_ANYTHING_CONFIG_DIR = app.getPath('userData');
   process.env.LEARN_ANYTHING_DATA_DIR = dataDir;
   process.env.API_PORT = process.env.API_PORT || '17345';
 
@@ -110,6 +146,15 @@ function setupIPC() {
       title: '选择数据目录',
     });
     return result.canceled ? null : result.filePaths[0];
+  });
+  ipcMain.handle('config:getDataDir', function() {
+    var cfg = loadConfig();
+    return cfg.dataDir || process.env.LEARN_ANYTHING_DATA_DIR;
+  });
+  ipcMain.handle('config:setDataDir', function(_e, dataDir) {
+    saveConfig('dataDir', dataDir);
+    process.env.LEARN_ANYTHING_DATA_DIR = dataDir;
+    return true;
   });
 }
 
