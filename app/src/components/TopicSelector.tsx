@@ -151,7 +151,8 @@ export default function TopicSelector() {
     fontFamily: 'var(--font-serif)',
     fontSize: 'var(--font-size-sm)',
     flexShrink: 0,
-  };
+    WebkitAppRegion: 'no-drag',
+  } as React.CSSProperties;
 
   const triggerStyle: React.CSSProperties = {
     display: 'flex',

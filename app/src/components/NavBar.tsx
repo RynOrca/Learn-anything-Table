@@ -21,7 +21,7 @@ export default function NavBar() {
         alignItems: 'center',
         justifyContent: 'space-between',
         height: 64,
-        padding: '0 32px',
+        padding: '0 10px 0 32px',
         borderBottom: '1px solid var(--color-border)',
         background: 'var(--color-bg-card)',
         flexShrink: 0,

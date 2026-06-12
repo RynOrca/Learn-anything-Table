@@ -236,16 +236,17 @@ html, body, #root {
 .electron-titlebar button,
 .electron-titlebar a,
 .electron-titlebar input,
-.electron-titlebar select {
+.electron-titlebar select,
+.electron-titlebar [data-no-drag] {
   -webkit-app-region: no-drag;
 }
 
 .window-controls {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   margin-left: auto;
-  padding-right: 24px;
+  padding-right: 10px;
   flex-shrink: 0;
   -webkit-app-region: no-drag;
 }
