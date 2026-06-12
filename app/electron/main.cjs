@@ -62,7 +62,7 @@ function saveWindowState() {
 
 // ── Express server (in-process, production only) ──────────────────
 
-function startServer() {
+async function startServer() {
   if (serverStarted) return;
 
   // Set data directory: load from saved config, fallback to default
@@ -82,8 +82,9 @@ function startServer() {
   process.env.API_PORT = process.env.API_PORT || '17345';
 
   try {
-    // Load pre-compiled CJS server (compiled by esbuild during build step)
-    require('../dist-server/index.cjs');
+    // Load and start compiled CJS server, wait until it's listening
+    var server = require('../dist-server/index.cjs');
+    await server.startServer();
     serverStarted = true;
     console.log('[server] Express started in-process on port ' + process.env.API_PORT);
   } catch (err) {
@@ -158,37 +159,14 @@ function setupIPC() {
   });
 }
 
-// ── Wait for server to be ready ───────────────────────────────────
-
-function waitForServer(url, timeoutMs) {
-  return new Promise(function(resolve) {
-    var start = Date.now();
-    function tryConnect() {
-      var req = require('http').get(url, function(res) {
-        resolve(true);
-      }).on('error', function() {
-        if (Date.now() - start < timeoutMs) {
-          setTimeout(tryConnect, 200);
-        } else {
-          resolve(false);
-        }
-      });
-      req.end();
-    }
-    tryConnect();
-  });
-}
-
 // ── Lifecycle ─────────────────────────────────────────────────────
 
 app.whenReady().then(async function() {
   setupIPC();
 
   if (!isDev) {
-    // Production: start Express in-process, then wait until it's listening
-    startServer();
-    var ready = await waitForServer('http://localhost:' + (process.env.API_PORT || '17345') + '/api/topics', 15000);
-    console.log(ready ? '[server] Express ready' : '[server] Express start timeout');
+    // Production: start Express and wait for it to be fully listening
+    await startServer();
   }
 
   createWindow();

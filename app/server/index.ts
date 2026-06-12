@@ -793,16 +793,32 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 
 export { app };
 
+/**
+ * Start the Express server. Returns a Promise that resolves when listening.
+ * Used by Electron main process to know exactly when the server is ready.
+ */
+export function startServer(): Promise<void> {
+  return new Promise((resolve) => {
+    app.listen(PORT, async () => {
+      const skillMgr = await initSkillManager();
+      console.log(`[learn-anything] API server running at http://localhost:${PORT}`);
+      console.log(`[learn-anything] Data root: ${getDataRoot()}`);
+      console.log(`[learn-anything] Skills on disk: ${skillMgr.count}, needs sync: ${!skillMgr.hasSkillsOnDisk()}`);
+      resolve();
+    });
+  });
+}
+
 // ---------------------------------------------------------------------------
-// Start server (when called directly)
+// Auto-start when called directly (tsx dev / standalone)
 // ---------------------------------------------------------------------------
 
-// Always start listening — this module is used both standalone (tsx) and
-// imported from Electron main process (compiled CJS).
-app.listen(PORT, async () => {
-  // Initialize SkillManager — loads .learn/skills/*.md, auto-migrates from builtins
-  const skillMgr = await initSkillManager();
-  console.log(`[learn-anything] API server running at http://localhost:${PORT}`);
-  console.log(`[learn-anything] Data root: ${getDataRoot()}`);
-  console.log(`[learn-anything] Skills on disk: ${skillMgr.count}, needs sync: ${!skillMgr.hasSkillsOnDisk()}`);
-});
+// Detect if this module is the entry point (works in both ESM and CJS)
+const isMainModule = process.argv[1] && (
+  process.argv[1].endsWith('index.ts') ||
+  process.argv[1].endsWith('index.cjs') ||
+  process.argv[1].endsWith('index.js')
+);
+if (isMainModule) {
+  startServer();
+}
