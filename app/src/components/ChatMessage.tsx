@@ -8,6 +8,17 @@ interface ChatMessageProps {
   showSaved?: boolean;
 }
 
+// Helper: extract plain text from React children for pattern matching
+function extractText(children: any): string {
+  if (typeof children === 'string') return children;
+  if (typeof children === 'number') return String(children);
+  if (Array.isArray(children)) return children.map(extractText).join('');
+  if (children && typeof children === 'object' && 'props' in children) {
+    return extractText(children.props.children);
+  }
+  return '';
+}
+
 export default function ChatMessage({ message, onSave, showSaved }: ChatMessageProps) {
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
@@ -103,6 +114,74 @@ export default function ChatMessage({ message, onSave, showSaved }: ChatMessageP
                 }} {...props}>
                   {children}
                 </code>
+              );
+            },
+            // Render paragraphs starting with ⚠️ with warning style
+            p({ children, ...props }: any) {
+              const text = extractText(children);
+              const isWarning = text?.startsWith('⚠️');
+              return (
+                <p
+                  style={isWarning ? {
+                    background: 'rgba(255, 193, 7, 0.08)',
+                    borderLeft: '3px solid var(--color-accent-yellow, #ffc107)',
+                    padding: '8px 12px',
+                    borderRadius: '0 var(--radius-sm) var(--radius-sm) 0',
+                    margin: '8px 0',
+                  } : undefined}
+                  title={isWarning ? '此信息未在官方文档中验证' : undefined}
+                  {...props}
+                >
+                  {children}
+                </p>
+              );
+            },
+            // Render blockquotes with warning style when they contain ⚠️
+            blockquote({ children, ...props }: any) {
+              const text = extractText(children);
+              const isDegradationBanner = text?.includes('⚠️') && (
+                text?.includes('未经过实时') ||
+                text?.includes('训练数据生成') ||
+                text?.includes('官方文档验证')
+              );
+              return (
+                <blockquote
+                  style={isDegradationBanner ? {
+                    background: 'rgba(255, 152, 0, 0.1)',
+                    borderLeft: '4px solid #ff9800',
+                    padding: '10px 14px',
+                    borderRadius: '0 var(--radius-sm) var(--radius-sm) 0',
+                    margin: '8px 0',
+                    fontStyle: 'normal',
+                  } : {
+                    borderLeft: '3px solid var(--color-border)',
+                    paddingLeft: 12,
+                    color: 'var(--color-text-secondary)',
+                    margin: '8px 0',
+                  }}
+                  {...props}
+                >
+                  {children}
+                </blockquote>
+              );
+            },
+            // Style source links with icon
+            a({ href, children, ...props }: any) {
+              const isSourceLink = href?.includes('github.com') || href?.includes('raw.githubusercontent');
+              return (
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    color: 'var(--color-accent-blue)',
+                    textDecoration: 'underline',
+                    fontSize: 'var(--font-size-xs)',
+                  }}
+                  {...props}
+                >
+                  {isSourceLink ? `📋 ${children}` : children}
+                </a>
               );
             },
           }}

@@ -11,11 +11,7 @@ import fs from 'node:fs';
 import { config } from 'dotenv';
 
 // __dirname — works in ESM (tsx dev) and CJS (esbuild compiled)
-const __dirname: string = (() => {
-  // @ts-ignore: __dirname is a CJS global, unavailable in ESM
-  if (typeof __dirname !== 'undefined') return __dirname as string;
-  return path.dirname(fileURLToPath(import.meta.url));
-})();
+const __dirname: string = path.dirname(fileURLToPath(import.meta.url));
 
 // Load .env from app/ directory
 config({ path: path.resolve(__dirname, '..', '.env') });
@@ -39,6 +35,8 @@ import {
   getDataRoot,
   invalidateTopicCache,
 } from './files.js';
+import { initSkillManager, getSkillManager } from './skills.js';
+import { getContext7Service } from './context7.js';
 import {
   explain,
   chat,
@@ -679,6 +677,82 @@ app.get('/api/config/scan-topics', (_req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Skills management routes
+// ---------------------------------------------------------------------------
+
+// GET /api/skills — list all loaded skills + status
+app.get('/api/skills', (_req, res) => {
+  const mgr = getSkillManager();
+  res.json({
+    skills: mgr.list(),
+    count: mgr.count,
+    hasSkillsOnDisk: mgr.hasSkillsOnDisk(),
+    needsSync: !mgr.hasSkillsOnDisk(),
+  });
+});
+
+// GET /api/skills/:name — get full skill content
+app.get('/api/skills/:name', (req, res) => {
+  const mgr = getSkillManager();
+  const skill = mgr.get(req.params.name);
+  if (!skill) {
+    res.status(404).json({ error: `Skill "${req.params.name}" not found` });
+    return;
+  }
+  res.json({
+    name: skill.frontmatter.name,
+    displayName: skill.frontmatter.displayName,
+    version: skill.frontmatter.version,
+    source: skill.frontmatter.source,
+    updatedAt: skill.frontmatter.updatedAt,
+    prompt: skill.prompt,
+  });
+});
+
+// POST /api/skills/reload — force reload all skills from disk
+app.post('/api/skills/reload', (_req, res) => {
+  const mgr = getSkillManager();
+  const count = mgr.reloadFromDisk();
+  res.json({ reloaded: true, count });
+});
+
+// ---------------------------------------------------------------------------
+// Context7 routes
+// ---------------------------------------------------------------------------
+
+// POST /api/context7/validate-key — validate Context7 API key
+app.post('/api/context7/validate-key', async (req, res) => {
+  const body = req.body as { apiKey?: string };
+  if (!body.apiKey) {
+    res.status(400).json({ valid: false, error: 'apiKey is required' });
+    return;
+  }
+  const ctx7 = getContext7Service();
+  ctx7.updateConfig({ apiKey: body.apiKey, enabled: true });
+  try {
+    // Quick test: resolve "react" library
+    const result = await ctx7.fetchContext('react', 'hello world');
+    res.json({ valid: result.resolved, error: result.degradationReason });
+  } catch {
+    res.json({ valid: false, error: '无法连接到 Context7 服务' });
+  }
+});
+
+// GET /api/context7/cache-stats — get cache stats
+app.get('/api/context7/cache-stats', (_req, res) => {
+  const ctx7 = getContext7Service();
+  const stats = ctx7.getCacheStats();
+  res.json(stats);
+});
+
+// POST /api/context7/clear-cache — clear the cache
+app.post('/api/context7/clear-cache', (_req, res) => {
+  const ctx7 = getContext7Service();
+  ctx7.clearCache();
+  res.json({ cleared: true });
+});
+
+// ---------------------------------------------------------------------------
 // Static files & SPA fallback (production Electron)
 // ---------------------------------------------------------------------------
 
@@ -720,7 +794,10 @@ export { app };
 
 // Always start listening — this module is used both standalone (tsx) and
 // imported from Electron main process (compiled CJS).
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
+  // Initialize SkillManager — loads .learn/skills/*.md, auto-migrates from builtins
+  const skillMgr = await initSkillManager();
   console.log(`[learn-anything] API server running at http://localhost:${PORT}`);
   console.log(`[learn-anything] Data root: ${getDataRoot()}`);
+  console.log(`[learn-anything] Skills on disk: ${skillMgr.count}, needs sync: ${!skillMgr.hasSkillsOnDisk()}`);
 });

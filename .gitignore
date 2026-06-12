@@ -1,12 +1,48 @@
+# === 依赖 ===
 node_modules/
-.learn/
-.superpowers/
-*.log
-.env
+
+# === 构建产物 ===
+app/dist/
+app/dist-server/
+app/release/
+*.tsbuildinfo
+
+# === 编译生成的 JS/声明文件（源码在 .ts） ===
 app/src/server/*.js
 app/src/server/*.d.ts
 app/vite.config.js
 app/vite.config.d.ts
-*.tsbuildinfo
-app/release/
-app/dist/
+
+# === 环境变量 & 密钥（含 API Key，绝对不能上传） ===
+.env
+.env.local
+.env.*.local
+app/.env
+app/.env.local
+
+# === 学习数据（用户个人数据，绝对不能上传） ===
+.learn/
+topics/
+
+# 根目录下的主题文件夹（根据 VITE_DATA_DIR 配置可能出现在任何位置）
+# 如果你把数据目录设在了项目根目录，请把对应的主题文件夹也加到这里
+
+# === 个人配置 ===
+.superpowers/
+.claude/
+
+# === 日志 ===
+*.log
+npm-debug.log*
+
+# === 系统文件 ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === IDE ===
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

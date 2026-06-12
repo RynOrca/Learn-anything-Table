@@ -88,4 +88,6 @@ export interface Settings {
   deepseekApiKey: string;
   dataDir: string;
   fontSize: number;
+  context7ApiKey: string;
+  context7Enabled: boolean;
 }

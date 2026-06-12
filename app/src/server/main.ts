@@ -26,6 +26,8 @@ import {
   planFromFile,
 } from '../../server/deepseek';
 import { executePython } from '../../server/execute';
+import { getSkillManager } from '../../server/skills';
+import { getContext7Service } from '../../server/context7';
 
 // ---------------------------------------------------------------------------
 // Helper: extract API key from Authorization header
@@ -608,6 +610,69 @@ export function learningApiPlugin(): Plugin {
               body.currentState,
             );
             return json(res, 200, { content });
+          }
+
+          // -----------------------------------------------------------------
+          // Skills management (lite version — full routes in Express server)
+          // -----------------------------------------------------------------
+
+          if (method === 'GET' && pathname === '/api/skills') {
+            const mgr = getSkillManager();
+            return json(res, 200, {
+              skills: mgr.list(),
+              count: mgr.count,
+              hasSkillsOnDisk: mgr.hasSkillsOnDisk(),
+              needsSync: !mgr.hasSkillsOnDisk(),
+            });
+          }
+
+          if (method === 'GET' && pathname.startsWith('/api/skills/') && pathname !== '/api/skills/reload') {
+            const name = pathname.replace('/api/skills/', '');
+            const mgr = getSkillManager();
+            const skill = mgr.get(decodeURIComponent(name));
+            if (!skill) return json(res, 404, { error: `Skill "${name}" not found` });
+            return json(res, 200, {
+              name: skill.frontmatter.name,
+              displayName: skill.frontmatter.displayName,
+              version: skill.frontmatter.version,
+              source: skill.frontmatter.source,
+              updatedAt: skill.frontmatter.updatedAt,
+              prompt: skill.prompt,
+            });
+          }
+
+          if (method === 'POST' && pathname === '/api/skills/reload') {
+            const mgr = getSkillManager();
+            mgr.reloadFromDisk();
+            return json(res, 200, { reloaded: true, count: mgr.count });
+          }
+
+          if (method === 'POST' && pathname === '/api/context7/validate-key') {
+            const bodyRaw = await readBody(req);
+            let body: { apiKey?: string };
+            try { body = JSON.parse(bodyRaw); } catch {
+              return json(res, 400, { error: 'Invalid JSON' });
+            }
+            if (!body.apiKey) return json(res, 400, { valid: false, error: 'apiKey is required' });
+            const ctx7 = getContext7Service();
+            ctx7.updateConfig({ apiKey: body.apiKey, enabled: true });
+            try {
+              const r = await ctx7.fetchContext('react', 'hello world');
+              return json(res, 200, { valid: r.resolved, error: r.degradationReason });
+            } catch {
+              return json(res, 200, { valid: false, error: '无法连接到 Context7 服务' });
+            }
+          }
+
+          if (method === 'GET' && pathname === '/api/context7/cache-stats') {
+            const ctx7 = getContext7Service();
+            return json(res, 200, ctx7.getCacheStats());
+          }
+
+          if (method === 'POST' && pathname === '/api/context7/clear-cache') {
+            const ctx7 = getContext7Service();
+            ctx7.clearCache();
+            return json(res, 200, { cleared: true });
           }
 
           // -----------------------------------------------------------------
