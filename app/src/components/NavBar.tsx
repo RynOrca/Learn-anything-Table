@@ -63,7 +63,7 @@ export default function NavBar() {
           </NavLink>
         ))}
       </div>
-      <div style={{ marginLeft: 16 }}>
+      <div style={{ marginLeft: 16, marginRight: 20 }}>
         <TopicSelector />
       </div>
       {isElectron && (
