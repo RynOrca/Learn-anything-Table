@@ -10,8 +10,13 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { config } from 'dotenv';
 
-// __dirname — works in ESM (tsx dev) and CJS (esbuild compiled)
-const __dirname: string = path.dirname(fileURLToPath(import.meta.url));
+// __dirname — works in CJS (esbuild compiled) and ESM (tsx dev)
+// In CJS: __dirname is a module built-in
+// In ESM: __dirname is undefined (ReferenceError in strict mode), fallback to import.meta.url
+const __dirname: string = (() => {
+  try { return __dirname; } catch { /* not in CJS */ }
+  return path.dirname(fileURLToPath(import.meta.url));
+})();
 
 // Load .env from app/ directory
 config({ path: path.resolve(__dirname, '..', '.env') });
