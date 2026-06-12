@@ -158,14 +158,37 @@ function setupIPC() {
   });
 }
 
+// ── Wait for server to be ready ───────────────────────────────────
+
+function waitForServer(url, timeoutMs) {
+  return new Promise(function(resolve) {
+    var start = Date.now();
+    function tryConnect() {
+      var req = require('http').get(url, function(res) {
+        resolve(true);
+      }).on('error', function() {
+        if (Date.now() - start < timeoutMs) {
+          setTimeout(tryConnect, 200);
+        } else {
+          resolve(false);
+        }
+      });
+      req.end();
+    }
+    tryConnect();
+  });
+}
+
 // ── Lifecycle ─────────────────────────────────────────────────────
 
-app.whenReady().then(function() {
+app.whenReady().then(async function() {
   setupIPC();
 
   if (!isDev) {
-    // Production: start Express in-process before creating window
+    // Production: start Express in-process, then wait until it's listening
     startServer();
+    var ready = await waitForServer('http://localhost:' + (process.env.API_PORT || '17345') + '/api/topics', 15000);
+    console.log(ready ? '[server] Express ready' : '[server] Express start timeout');
   }
 
   createWindow();
