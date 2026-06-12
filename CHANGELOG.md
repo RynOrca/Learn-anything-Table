@@ -2,6 +2,29 @@
 
 ## [Unreleased] — 2026-06-12
 
+### Added
+
+- **Skill 系统重构**: 新增 SkillManager 动态加载技能文件
+  - 支持两种格式：单个 `.md` 文件 + 包含 `SKILL.md` 的子目录（兼容原始 `.claude/skills/` 格式）
+  - 热重载：`fs.watch` 监听 + API 手动触发
+  - 10 个内置兜底 prompt，确保无文件时 AI 仍可用
+  - 修复 YAML 解析：改用正则手动解析，避免 `js-yaml` 对含冒号值的误解析
+  - Commit: `afb6390`
+- **Context7 集成**: 新增 Context7Service 实时文档查询
+  - 两步 API（resolve library → query docs），24h 内存缓存
+  - 优雅降级：不可用时标注 ⚠️ 内容
+- **PromptBuilder**: 组装 System Prompt + Context7 上下文 + 标注规则
+- **ChatMessage 增强**: ⚠️ 警告标记渲染为琥珀色高亮框
+- **README.md + .gitignore**: 项目文档和敏感数据排除
+
+### Changed
+
+- **Settings 页面重构**: 
+  - 移除 GitHub 同步功能（网络不可达），改为手动/Agent 两种更新引导
+  - Skills 管理状态根据 API Key 配置显示不同提示（有 Key="AI 功能可用"，无 Key="请先配置 API Key"）
+  - 删除指向不存在路径的 `.claude/skills` 链接
+- 更新 skills 到最新版本（`learn-anything-cli` v0.4.1）
+
 ### Fixed
 
 - **数据目录持久化**: 修复每次打开 exe 都需要重新设置数据目录路径的问题
