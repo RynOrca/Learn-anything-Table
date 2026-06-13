@@ -31,4 +31,6 @@ nsis:
   createStartMenuShortcut: true
   shortcutName: Learn-Anything
 
-asar: false
+asar: true
+asarUnpack:
+  - dist/**/*
