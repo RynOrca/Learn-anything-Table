@@ -1,5 +1,20 @@
 # Changelog
 
+## [Unreleased] — 2026-06-13
+
+### Fixed
+
+- **Skill 命名解析修复**: 磁盘 skill 现在被 AI 实际使用，而非始终回退内置 prompt
+  - **根因**: AI (`deepseek.ts`) 用短名查询 skill（`explain`, `review`），磁盘 skill 用全名（`learn-anything-explain`），`getPrompt()` 永远找不到 → 永远回退内置中文 prompt
+  - **修复**: 新增 `SKILL_ALIAS_MAP` 映射表 + `resolve()` 两级查找（精确匹配 → 别名翻译）
+  - `getPrompt('explain')` 现在返回磁盘英文内容，而非内置中文
+  - `displayName` 不再使用长 `description` 字段，改为 fallback 到 `name`
+  - `getSkillsStatus()` 统一返回 `skills` + `builtins` + `needsSync`（基于核心 AI skill 是否被覆盖）
+  - `writeSkill()` 改为子目录格式 `name/SKILL.md`，`deleteSkill()` 兼容双格式
+  - Settings 页面分两组展示：磁盘加载的 Skills（绿色边框）+ 内置回退 Skills（半透明）
+  - `needsSync` 警告文案区分"完全无文件"和"部分缺失"
+  - Commit: `abede63`
+
 ## [Unreleased] — 2026-06-12
 
 ### Added
