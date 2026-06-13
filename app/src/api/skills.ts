@@ -49,6 +49,7 @@ async function postJSON<T>(url: string, body?: unknown): Promise<T> {
 
 export interface SkillsStatus {
   skills: SkillSummary[];
+  builtins: SkillSummary[];
   count: number;
   hasSkillsOnDisk: boolean;
   needsSync: boolean;
@@ -69,8 +70,8 @@ export async function reloadSkills(): Promise<number> {
 
 // Context7 API
 
-export async function validateContext7Key(apiKey: string): Promise<{ valid: boolean; error?: string }> {
-  return postJSON<{ valid: boolean; error?: string }>('/api/context7/validate-key', { apiKey });
+export async function validateContext7Key(apiKey: string): Promise<{ valid: boolean; reachable?: boolean; error?: string }> {
+  return postJSON<{ valid: boolean; reachable?: boolean; error?: string }>('/api/context7/validate-key', { apiKey });
 }
 
 export async function clearContext7Cache(): Promise<void> {

@@ -688,12 +688,7 @@ app.get('/api/config/scan-topics', (_req, res) => {
 // GET /api/skills — list all loaded skills + status
 app.get('/api/skills', (_req, res) => {
   const mgr = getSkillManager();
-  res.json({
-    skills: mgr.list(),
-    count: mgr.count,
-    hasSkillsOnDisk: mgr.hasSkillsOnDisk(),
-    needsSync: !mgr.hasSkillsOnDisk(),
-  });
+  res.json(mgr.getSkillsStatus());
 });
 
 // GET /api/skills/:name — get full skill content
@@ -734,13 +729,10 @@ app.post('/api/context7/validate-key', async (req, res) => {
   }
   const ctx7 = getContext7Service();
   ctx7.updateConfig({ apiKey: body.apiKey, enabled: true });
-  try {
-    // Quick test: resolve "react" library
-    const result = await ctx7.fetchContext('react', 'hello world');
-    res.json({ valid: result.resolved, error: result.degradationReason });
-  } catch {
-    res.json({ valid: false, error: '无法连接到 Context7 服务' });
-  }
+  console.log(`[Context7] Validating key: ${body.apiKey.slice(0, 12)}... (length=${body.apiKey.length})`);
+  const result = await ctx7.validateApiKey();
+  console.log(`[Context7] Validation result:`, JSON.stringify(result));
+  res.json(result);
 });
 
 // GET /api/context7/cache-stats — get cache stats

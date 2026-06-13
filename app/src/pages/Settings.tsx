@@ -115,9 +115,11 @@ export default function Settings() {
   const [localContext7Enabled, setLocalContext7Enabled] = useState(store.context7Enabled);
   const [validatingCtx7, setValidatingCtx7] = useState(false);
   const [ctx7Status, setCtx7Status] = useState<'idle' | 'valid' | 'invalid'>('idle');
+  const [ctx7StatusMsg, setCtx7StatusMsg] = useState('');
 
   // Skills state
   const [skills, setSkills] = useState<SkillSummary[]>([]);
+  const [builtins, setBuiltins] = useState<SkillSummary[]>([]);
   const [needsSync, setNeedsSync] = useState(false);
   const [skillsLoading, setSkillsLoading] = useState(false);
 
@@ -141,11 +143,25 @@ export default function Settings() {
     loadSkills();
   }, []);
 
+  // Sync saved Context7 key to backend on mount (read from localStorage directly)
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('learn-anything-settings');
+      if (stored) {
+        const parsed = JSON.parse(stored) as { context7ApiKey?: string };
+        if (parsed.context7ApiKey) {
+          validateContext7Key(parsed.context7ApiKey).catch(() => {});
+        }
+      }
+    } catch {}
+  }, []);
+
   const loadSkills = async () => {
     setSkillsLoading(true);
     try {
       const data = await fetchSkills();
       setSkills(data.skills);
+      setBuiltins(data.builtins ?? []);
       setNeedsSync(data.needsSync);
     } catch { /* ignore */ }
     setSkillsLoading(false);
@@ -184,11 +200,21 @@ export default function Settings() {
     if (!localContext7ApiKey) return;
     setValidatingCtx7(true);
     setCtx7Status('idle');
+    setCtx7StatusMsg('');
     try {
       const result = await validateContext7Key(localContext7ApiKey);
       setCtx7Status(result.valid ? 'valid' : 'invalid');
+      if (result.valid) {
+        // Auto-save on successful validation
+        store.setContext7ApiKey(localContext7ApiKey);
+        store.setContext7Enabled(true);
+        store.saveSettings();
+      } else if (result.error) {
+        setCtx7StatusMsg(result.error);
+      }
     } catch {
       setCtx7Status('invalid');
+      setCtx7StatusMsg('无法连接到后端服务');
     }
     setValidatingCtx7(false);
   };
@@ -352,7 +378,9 @@ export default function Settings() {
             <span style={{ color: 'var(--color-accent-green)', fontSize: 'var(--font-size-sm)' }}>✅ Key 有效</span>
           )}
           {ctx7Status === 'invalid' && (
-            <span style={{ color: 'var(--color-accent-red)', fontSize: 'var(--font-size-sm)' }}>❌ Key 无效</span>
+            <span style={{ color: 'var(--color-accent-red)', fontSize: 'var(--font-size-sm)' }}>
+              ❌ {ctx7StatusMsg || 'Key 无效'}
+            </span>
           )}
         </div>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
@@ -476,7 +504,10 @@ export default function Settings() {
             border: '1px solid var(--color-border)',
             fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)',
           }}>
-            ℹ️ 当前使用<strong style={{ color: 'var(--color-text-primary)' }}>内置默认 Skills</strong>（共 10 个）。
+            {skills.length > 0
+              ? `ℹ️ 从磁盘加载了 ${skills.length} 个 Skills，但部分核心 AI Skills 缺失，已使用内置版本作为回退。`
+              : 'ℹ️ 当前使用内置默认 Skills（共 10 个）。'
+            }
             {store.deepseekApiKey
               ? ' AI 功能可用。如需自定义，请按上方教程手动添加文件。'
               : ' 请先在上方配置 DeepSeek API Key，AI 功能才能使用。'
@@ -494,31 +525,70 @@ export default function Settings() {
             重新加载
           </button>
         </div>
-        {skills.length > 0 ? (
+        {skills.length > 0 || builtins.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {skills.map((s) => (
-              <div key={s.name} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '6px 10px', borderRadius: 'var(--radius-sm)',
-                background: 'var(--color-bg-page)', border: '1px solid var(--color-border)',
-                fontSize: 'var(--font-size-sm)',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ color: 'var(--color-text-primary)', fontFamily: 'var(--font-mono)' }}>{s.name}</span>
-                  <span style={{ color: 'var(--color-text-secondary)' }}>{s.displayName}</span>
+            {/* Disk-loaded skills */}
+            {skills.length > 0 && (
+              <>
+                <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', marginBottom: 2, marginTop: 4 }}>
+                  磁盘加载的 Skills ({skills.length}):
                 </div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <span style={{
-                    padding: '1px 6px', borderRadius: 'var(--radius-pill)', fontSize: 'var(--font-size-xs)',
-                    background: s.source === 'github' ? 'var(--color-bg-green)' : s.source === 'user' ? 'var(--color-bg-yellow)' : 'var(--color-bg-blue)',
-                    color: s.source === 'github' ? 'var(--color-accent-green)' : s.source === 'user' ? 'var(--color-accent-yellow)' : 'var(--color-accent-blue)',
+                {skills.map((s) => (
+                  <div key={s.name} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '6px 10px', borderRadius: 'var(--radius-sm)',
+                    background: 'var(--color-bg-page)', border: '1px solid var(--color-accent-green)',
+                    fontSize: 'var(--font-size-sm)',
                   }}>
-                    {s.source}
-                  </span>
-                  <span style={{ color: 'var(--color-text-tertiary)', fontSize: 'var(--font-size-xs)' }}>v{s.version}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ color: 'var(--color-text-primary)', fontFamily: 'var(--font-mono)' }}>{s.name}</span>
+                      <span style={{ color: 'var(--color-text-secondary)' }}>{s.displayName}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <span style={{
+                        padding: '1px 6px', borderRadius: 'var(--radius-pill)', fontSize: 'var(--font-size-xs)',
+                        background: 'var(--color-bg-green)',
+                        color: 'var(--color-accent-green)',
+                      }}>
+                        {s.source}
+                      </span>
+                      <span style={{ color: 'var(--color-text-tertiary)', fontSize: 'var(--font-size-xs)' }}>v{s.version}</span>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+            {/* Builtin-only fallbacks */}
+            {builtins.length > 0 && (
+              <>
+                <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', marginBottom: 2, marginTop: 12 }}>
+                  内置回退 Skills ({builtins.length}):
                 </div>
-              </div>
-            ))}
+                {builtins.map((s) => (
+                  <div key={s.name} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '6px 10px', borderRadius: 'var(--radius-sm)',
+                    background: 'var(--color-bg-page)', border: '1px solid var(--color-border)',
+                    fontSize: 'var(--font-size-sm)', opacity: 0.7,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ color: 'var(--color-text-primary)', fontFamily: 'var(--font-mono)' }}>{s.name}</span>
+                      <span style={{ color: 'var(--color-text-secondary)' }}>{s.displayName}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <span style={{
+                        padding: '1px 6px', borderRadius: 'var(--radius-pill)', fontSize: 'var(--font-size-xs)',
+                        background: 'var(--color-bg-blue)',
+                        color: 'var(--color-accent-blue)',
+                      }}>
+                        builtin
+                      </span>
+                      <span style={{ color: 'var(--color-text-tertiary)', fontSize: 'var(--font-size-xs)' }}>v{s.version}</span>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         ) : (
           <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>

@@ -337,6 +337,23 @@ const BUILTIN_META: Record<string, SkillFrontmatter> = {
   'plan-from-file':{ name: 'plan-from-file',displayName: '从文件生成计划',  version: '1.0', source: 'builtin', updatedAt: '2026-06-12' },
 };
 
+/**
+ * Maps short AI-query names to fully-qualified disk skill names.
+ * When getPrompt('explain') is called, we first check this map to find
+ * 'learn-anything-explain' on disk before falling back to builtin.
+ */
+const SKILL_ALIAS_MAP: Record<string, string> = {
+  explain:  'learn-anything-explain',
+  review:   'learn-anything-review',
+  practice: 'learn-anything-practice',
+  exercise: 'learn-anything-practice',  // AI queries 'exercise', disk skill is 'practice'
+  topic:    'learn-anything-topic',
+  status:   'learn-anything-status',
+};
+
+/** Core AI skill names that should ideally have disk overrides. */
+const CORE_AI_NAMES = ['explain', 'review', 'exercise', 'topic', 'status'];
+
 // ---------------------------------------------------------------------------
 // YAML frontmatter parser
 // ---------------------------------------------------------------------------
@@ -364,8 +381,8 @@ function parseFrontmatter(raw: string): { frontmatter: SkillFrontmatter | null; 
   };
 
   const name = getField('name') ?? '';
-  // Format A: displayName, Format B: description
-  const displayName = getField('displayName') ?? getField('description') ?? name;
+  // Use explicit displayName if present; fallback to name (NOT description — too verbose for UI)
+  const displayName = getField('displayName') ?? name;
   // Format A: version, Format B: metadata.version
   const version = getField('version') ?? getMetaField('version') ?? '1.0';
   // Format A: source, Format B: metadata.author
@@ -446,9 +463,20 @@ export class SkillManager {
     return this.skills.get(name);
   }
 
+  /** Resolve a skill by name — exact match first, then short-name alias lookup. */
+  resolve(name: string): SkillDefinition | undefined {
+    // 1) Exact match (handles flat .md files and direct name equality)
+    const exact = this.skills.get(name);
+    if (exact) return exact;
+    // 2) Alias lookup (maps short names like 'explain' → 'learn-anything-explain')
+    const mappedName = SKILL_ALIAS_MAP[name];
+    if (mappedName) return this.skills.get(mappedName);
+    return undefined;
+  }
+
   /** Get a skill's prompt only. Falls back to builtin if file missing. */
   getPrompt(name: string): string {
-    const skill = this.skills.get(name);
+    const skill = this.resolve(name);
     if (skill) return skill.prompt;
     // Fallback to builtin
     return BUILTIN_PROMPTS[name] ?? '';
@@ -474,20 +502,63 @@ export class SkillManager {
     return this.skills.size;
   }
 
+  /** Check whether all core AI skills have disk overrides. */
+  areCoreSkillsAvailable(): boolean {
+    for (const name of CORE_AI_NAMES) {
+      if (!this.resolve(name)) return false;
+    }
+    return true;
+  }
+
+  /** Return a complete status object for the API: disk skills + builtin-only fallbacks. */
+  getSkillsStatus() {
+    const diskSkills = this.list();
+    // Collect builtins that are NOT covered by any disk skill
+    const builtins: SkillSummary[] = [];
+    for (const [name, meta] of Object.entries(BUILTIN_META)) {
+      if (!this.resolve(name)) {
+        builtins.push({
+          name:        meta.name,
+          displayName: meta.displayName,
+          version:     meta.version,
+          source:      meta.source,
+          updatedAt:   meta.updatedAt,
+        });
+      }
+    }
+    return {
+      skills: diskSkills,
+      builtins,
+      count: this.skills.size,
+      hasSkillsOnDisk: this.hasSkillsOnDisk(),
+      needsSync: !this.areCoreSkillsAvailable(),
+    };
+  }
+
   // -----------------------------------------------------------------------
   // Write
   // -----------------------------------------------------------------------
 
-  /** Write a skill to disk and update in-memory cache. */
+  /** Write a skill to disk (subdirectory format: name/SKILL.md) and update cache. */
   async writeSkill(fm: SkillFrontmatter, prompt: string): Promise<void> {
     const content = serializeSkill(fm, prompt);
-    const filePath = path.join(this.skillsDir, `${fm.name}.md`);
+    const dirPath = path.join(this.skillsDir, fm.name);
+    fs.mkdirSync(dirPath, { recursive: true });
+    const filePath = path.join(dirPath, 'SKILL.md');
     fs.writeFileSync(filePath, content, 'utf-8');
     this.skills.set(fm.name, { frontmatter: fm, prompt, filePath });
   }
 
-  /** Delete a skill file from disk. */
+  /** Delete a skill from disk. Supports both subdirectory and flat .md formats. */
   deleteSkill(name: string): boolean {
+    // Try subdirectory format first (preferred)
+    const dirPath = path.join(this.skillsDir, name);
+    if (fs.existsSync(dirPath) && fs.statSync(dirPath).isDirectory()) {
+      fs.rmSync(dirPath, { recursive: true });
+      this.skills.delete(name);
+      return true;
+    }
+    // Fallback to flat .md format (legacy)
     const filePath = path.join(this.skillsDir, `${name}.md`);
     if (!fs.existsSync(filePath)) return false;
     fs.unlinkSync(filePath);

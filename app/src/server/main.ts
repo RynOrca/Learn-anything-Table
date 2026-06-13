@@ -618,12 +618,7 @@ export function learningApiPlugin(): Plugin {
 
           if (method === 'GET' && pathname === '/api/skills') {
             const mgr = getSkillManager();
-            return json(res, 200, {
-              skills: mgr.list(),
-              count: mgr.count,
-              hasSkillsOnDisk: mgr.hasSkillsOnDisk(),
-              needsSync: !mgr.hasSkillsOnDisk(),
-            });
+            return json(res, 200, mgr.getSkillsStatus());
           }
 
           if (method === 'GET' && pathname.startsWith('/api/skills/') && pathname !== '/api/skills/reload') {
