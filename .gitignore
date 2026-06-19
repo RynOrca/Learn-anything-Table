@@ -30,6 +30,7 @@ topics/
 # === 个人配置 ===
 .superpowers/
 .claude/
+docs/superpowers/
 
 # === 日志 ===
 *.log
