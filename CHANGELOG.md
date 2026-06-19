@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased] — 2026-06-19
+
+### Added
+
+- **项目文档**: 新增 AGENTS.md（AI Agent 指令）和 .agents/ 目录（项目 Skills 文件）
+- **图标更新**: app/public/icon.svg 更新
+
+### Changed
+
+- **Context7 API 修复**: 修正 API endpoint 从 `api.context7.com/v1` 到 `context7.com/api/v2`，新增 API Key 验证功能
+  - Commit: `3c66d16`
+
+### Security
+
+- **Git 历史清洗**: 移除所有提交中的手机号邮箱（13710126687@163.com），替换为 GitHub noreply 邮箱
+
 ## [Unreleased] — 2026-06-13
 
 ### Fixed
