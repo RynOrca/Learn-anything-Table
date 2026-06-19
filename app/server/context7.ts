@@ -45,12 +45,13 @@ interface CacheEntry {
 // Context7Service
 // ---------------------------------------------------------------------------
 
-// Note: Context7 is typically accessed via MCP in Claude Code sessions.
-// For standalone Express servers, we use direct HTTP to the Context7 API.
-// If Context7 doesn't expose a public REST API, this service falls back
-// gracefully (degraded = true).
+// Context7 public REST API (extracted from @upstash/context7-mcp@3.2.0 source)
+// Base: https://context7.com/api/v2
+// Endpoints: GET /libs/search (resolve library), GET /context (query docs)
+// Auth: Bearer token + X-Context7-Source header
 
-const CONTEXT7_API_BASE = 'https://api.context7.com/v1';
+const CONTEXT7_API_BASE = 'https://context7.com/api';
+const CONTEXT7_SERVER_VERSION = '3.2.0';
 
 export class Context7Service {
   private config: Context7Config;
@@ -175,6 +176,69 @@ export class Context7Service {
   }
 
   // -----------------------------------------------------------------------
+  // API Key validation (with detailed diagnostics)
+  // -----------------------------------------------------------------------
+
+  async validateApiKey(): Promise<{ valid: boolean; reachable: boolean; error?: string }> {
+    // Step 1: Test API reachability without auth
+    let reachable = false;
+    try {
+      const testUrl = new URL(`${CONTEXT7_API_BASE}/v2/libs/search`);
+      testUrl.searchParams.set('query', 'test');
+      testUrl.searchParams.set('libraryName', 'react');
+      const res = await fetch(testUrl.toString(), {
+        method: 'GET',
+        headers: { 'X-Context7-Source': 'learn-anything' },
+        signal: AbortSignal.timeout(this.config.timeoutMs),
+      });
+      reachable = res.ok;
+      console.log(`[Context7] Reachability check: ${res.status} (ok=${res.ok})`);
+    } catch (err) {
+      console.error(`[Context7] Reachability check failed:`, (err as Error).message);
+      return { valid: false, reachable: false, error: `Context7 API 不可达: ${(err as Error).message}` };
+    }
+
+    if (!reachable) {
+      return { valid: false, reachable: false, error: 'Context7 API 不可达（服务器返回错误）' };
+    }
+
+    // Step 2: Test with the actual API key
+    try {
+      const testUrl = new URL(`${CONTEXT7_API_BASE}/v2/libs/search`);
+      testUrl.searchParams.set('query', 'test');
+      testUrl.searchParams.set('libraryName', 'react');
+      const res = await fetch(testUrl.toString(), {
+        method: 'GET',
+        headers: this.getHeaders(),
+        signal: AbortSignal.timeout(this.config.timeoutMs),
+      });
+      console.log(`[Context7] Auth check: ${res.status} (ok=${res.ok})`);
+
+      if (res.ok) {
+        return { valid: true, reachable: true };
+      }
+
+      if (res.status === 401) {
+        let msg = 'API Key 无效（服务器返回 401）';
+        try {
+          const body = await res.json();
+          if (body.message) msg = body.message;
+        } catch {}
+        return { valid: false, reachable: true, error: msg };
+      }
+
+      if (res.status === 429) {
+        return { valid: false, reachable: true, error: '请求过于频繁，请稍后重试' };
+      }
+
+      return { valid: false, reachable: true, error: `服务器返回状态码 ${res.status}` };
+    } catch (err) {
+      console.error(`[Context7] Auth check failed:`, (err as Error).message);
+      return { valid: false, reachable: true, error: `验证请求失败: ${(err as Error).message}` };
+    }
+  }
+
+  // -----------------------------------------------------------------------
   // Cache management
   // -----------------------------------------------------------------------
 
@@ -195,65 +259,66 @@ export class Context7Service {
   // Private: API calls
   // -----------------------------------------------------------------------
 
+  private getHeaders(): Record<string, string> {
+    return {
+      Authorization: `Bearer ${this.config.apiKey}`,
+      'X-Context7-Source': 'learn-anything',
+      'X-Context7-Server-Version': CONTEXT7_SERVER_VERSION,
+    };
+  }
+
   private async resolveLibrary(libraryName: string, query: string): Promise<string | null> {
-    const url = `${CONTEXT7_API_BASE}/resolve-library`;
+    const url = new URL(`${CONTEXT7_API_BASE}/v2/libs/search`);
+    url.searchParams.set('query', query);
+    url.searchParams.set('libraryName', libraryName);
     try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.config.apiKey}`,
-        },
-        body: JSON.stringify({ libraryName, query }),
+      const res = await fetch(url.toString(), {
+        method: 'GET',
+        headers: this.getHeaders(),
         signal: AbortSignal.timeout(this.config.timeoutMs),
       });
 
       if (!res.ok) return null;
 
       const data = (await res.json()) as {
-        libraries?: Array<{ id?: string; libraryId?: string; score?: number }>;
+        results?: Array<{ libraryId?: string; name?: string; description?: string }>;
       };
 
-      const libs = data.libraries ?? [];
-      if (libs.length === 0) return null;
+      const results = data.results ?? [];
+      if (results.length === 0) return null;
 
       // Pick the best match
-      const best = libs[0];
-      return best.id ?? best.libraryId ?? null;
+      const best = results[0];
+      return best.libraryId ?? null;
     } catch {
       return null;
     }
   }
 
   private async queryDocs(libraryId: string, query: string): Promise<DocSnippet[]> {
-    const url = `${CONTEXT7_API_BASE}/query-docs`;
+    const url = new URL(`${CONTEXT7_API_BASE}/v2/context`);
+    url.searchParams.set('query', query);
+    url.searchParams.set('libraryId', libraryId);
     try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.config.apiKey}`,
-        },
-        body: JSON.stringify({ libraryId, query }),
+      const res = await fetch(url.toString(), {
+        method: 'GET',
+        headers: this.getHeaders(),
         signal: AbortSignal.timeout(this.config.timeoutMs),
       });
 
       if (!res.ok) return [];
 
-      const data = (await res.json()) as {
-        snippets?: Array<{
-          content?: string;
-          sourceUrl?: string;
-          source?: string;
-          title?: string;
-        }>;
-      };
+      const text = await res.text();
+      if (!text || text.startsWith('<!DOCTYPE') || text.startsWith('<html')) {
+        return [];
+      }
 
-      return (data.snippets ?? []).map(s => ({
-        content: s.content ?? '',
-        sourceUrl: s.sourceUrl ?? s.source ?? '',
-        title: s.title ?? '',
-      }));
+      // The API returns raw documentation text (not structured snippets)
+      return [{
+        content: text.slice(0, 8000),
+        sourceUrl: `https://context7.com/library/${libraryId}`,
+        title: libraryId,
+      }];
     } catch {
       return [];
     }
